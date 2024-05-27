@@ -1,0 +1,21 @@
+{
+  "name": "cinemashowtimes",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@types/typescript": "^2.0.0",
+    "express": "^4.19.2"
+  },
+  "scripts": {
+    "back-build": "cd private && tsc",
+    "back-dev": "npm run back-build && nodemon private/dist/index.js",
+    "back-prod": "npm run back-build && node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "nodemon": "^3.1.1"
+  }
+}
