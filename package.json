@@ -8,8 +8,8 @@
   },
   "scripts": {
     "back-build": "cd private && tsc",
-    "back-dev": "npm run back-build && nodemon private/dist/index.js",
-    "back-prod": "npm run back-build && node dist/index.js"
+    "back-dev": "npm run back-build && nodemon --env-file=.env private/dist/index.js",
+    "back-prod": "npm run back-build && node --env-file=.env private/dist/index.js"
   },
   "keywords": [],
   "author": "",
