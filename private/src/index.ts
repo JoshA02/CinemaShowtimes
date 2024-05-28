@@ -44,7 +44,7 @@ async function fetchMovies(): Promise<Movie[]> {
 
   // Exclude movies not showing at the chosen cinema.
   movieData = movieData.filter((movie: any) => {
-    return movie.theaters.filter((theater: any) => theater.th === process.env.CINEMA_ID).length > 0;
+    return movie.theaters.filter((theater: any) => theater.th === process.env.CINEMA_ID?.toUpperCase()).length > 0;
   });
 
   // Cast the data to the expected format.
@@ -53,4 +53,50 @@ async function fetchMovies(): Promise<Movie[]> {
   });
 }
 
-console.log(await fetchMovies());
+async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
+  assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
+  assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
+  assert(circuitID, 'Circuit ID not set. Did you forget to call fetchMovies()?');
+  assert(websiteID, 'Website ID not set. Did you forget to call fetchMovies()?');
+
+  const response = await fetch(process.env.SCHEDULE_API,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        circuit: circuitID,
+        from: new Date(new Date().setHours(0, 0, 0)).toISOString(),
+        movieIds: movies.map(movie => movie.id),
+        nin: [],
+        sin: [],
+        theaters: [{id: process.env.CINEMA_ID.toUpperCase(), timeZone: "Europe/London"}],
+        to: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
+        websiteId: websiteID
+      })
+    },
+  );
+  const data = await response.json();
+
+  // Don't crash if the API doesn't return the expected data; handle gracefully.
+  if(!data) return [];
+  if(!data[process.env.CINEMA_ID.toUpperCase()]?.schedule) return [];
+
+  console.log("TEST");
+
+  const schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
+  
+  for(const movieID in schedule) {
+    if(!movies.find(movie => movie.id === movieID)) continue; // Only include movies that are in the list of movies.
+    if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Only include showings for today.
+
+    const todaysShowings = schedule[movieID][new Date().toISOString().split('T')[0]];
+    console.log(todaysShowings);
+
+    console.log("------------------\n\n\n");
+  }
+
+  return [];
+
+}
+
+// const x = await fetchMovies();
+// await fetchShowings(x);
