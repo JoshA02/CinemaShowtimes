@@ -59,6 +59,8 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(circuitID, 'Circuit ID not set. Did you forget to call fetchMovies()?');
   assert(websiteID, 'Website ID not set. Did you forget to call fetchMovies()?');
 
+  const showings: Showing[] = [];
+
   const response = await fetch(process.env.SCHEDULE_API,
     {
       method: 'POST',
@@ -80,23 +82,38 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   if(!data) return [];
   if(!data[process.env.CINEMA_ID.toUpperCase()]?.schedule) return [];
 
-  console.log("TEST");
-
   const schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
   
+  // Currently, this works movie by movie. This could be improved by fetching all showings for all movies in parallel.
   for(const movieID in schedule) {
     if(!movies.find(movie => movie.id === movieID)) continue; // Only include movies that are in the list of movies.
     if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Only include showings for today.
 
     const todaysShowings = schedule[movieID][new Date().toISOString().split('T')[0]];
-    console.log(todaysShowings);
 
-    console.log("------------------\n\n\n");
+    const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing));
+    const updatedShowings = await Promise.all(detailPromises);
+    showings.push(...updatedShowings);
+    console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
   }
 
   return [];
+}
+
+async function populateShowingDetails(showingJson: string): Promise<Showing> {
+  
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  return {
+    movie: { id: '', title: '', certificate: '' },
+    time: new Date(),
+    runtime: 0,
+    screen: 0,
+    seatsOccupied: 0,
+    seatsTotal: 0
+  };
 
 }
 
-// const x = await fetchMovies();
-// await fetchShowings(x);
+const x = await fetchMovies();
+await fetchShowings(x);
