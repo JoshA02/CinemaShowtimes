@@ -57,7 +57,6 @@ async function fetchMovies(): Promise<Movie[]> {
   });
 }
 
-
 /**
  * Fetches all showings for the chosen cinema for the current day, utilising the schedule API and (via populateShowingDetails) the booking API.
  * @param movies An array of Movie objects to fetch showings for (from fetchMovies)
@@ -182,6 +181,13 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
  * @returns An array of Showings for the cinema, or an empty array if an error occurred.
  */
 export async function grabShowings(): Promise<Showing[]> {
+
+  if(!process.env.QUERY_API_URL_PREFIX || !process.env.QUERY_API_URL_SUFFIX || !process.env.MOVIE_API_URL_PREFIX || !process.env.CINEMA_ID || !process.env.SCHEDULE_API) {
+    console.error('One or more required environment variables are not set.\n' +
+    'Required variables: QUERY_API_URL_PREFIX, QUERY_API_URL_SUFFIX, MOVIE_API_URL_PREFIX, CINEMA_ID, SCHEDULE_API\nNo data will be returned.');
+    return [];
+  }
+
   try{
     return await fetchShowings(await fetchMovies());
   } catch (error) {
