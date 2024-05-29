@@ -94,7 +94,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
     const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing, movie));
     const updatedShowings: Showing[] = await Promise.all(detailPromises);
     showings.push(...updatedShowings.filter(showing => showing.movie.id === movieID));
-    console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
+    // console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
   }
 
   return [];
@@ -157,7 +157,6 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
     seatsTotal: totalSeats
   }
 
-  console.log(showing);
   return showing;
 }
 
