@@ -86,25 +86,23 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   
   // Currently, this works movie by movie. This could be improved by fetching all showings for all movies in parallel.
   for(const movieID in schedule) {
-    if(!movies.find(movie => movie.id === movieID)) continue; // Only include movies that are in the list of movies.
+    const movie = movies.find(movie => movie.id === movieID) || null;
+    if(!movie) continue; // Only include movies that are in the list of movies.
     if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Only include showings for today.
-
     const todaysShowings = schedule[movieID][new Date().toISOString().split('T')[0]];
 
-    const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing));
-    const updatedShowings = await Promise.all(detailPromises);
-    showings.push(...updatedShowings);
+    const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing, movie));
+    const updatedShowings: Showing[] = await Promise.all(detailPromises);
+    showings.push(...updatedShowings.filter(showing => showing.movie.id === movieID));
     console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
   }
 
   return [];
 }
 
-async function populateShowingDetails(showingJson: string): Promise<Showing> {
-  
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  return {
+// Makes an artificial booking for a showing, in order to get the seat map and other details.
+async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
+  let showing: Showing = {
     movie: { id: '', title: '', certificate: '' },
     time: new Date(),
     runtime: 0,
@@ -113,6 +111,54 @@ async function populateShowingDetails(showingJson: string): Promise<Showing> {
     seatsTotal: 0
   };
 
+  const frontendBookingURL = showingJson?.data?.ticketing[0]?.urls[0] || null;
+  if(!frontendBookingURL) return showing;
+
+  const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
+  const bookingResponse = await fetch(backendBookingURL, { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({"selectedLanguageCulture": null})
+  });
+
+  const bookingData = await bookingResponse.json();
+  if(!bookingData) return showing;
+
+  const cartSummaryModel = bookingData?.cartSummaryModel || null;
+  const seatsLayoutModel = bookingData.selectSeatsModel?.seatsLayoutModel || null;
+  if(!cartSummaryModel) return showing;
+  if(!seatsLayoutModel) return showing;
+
+
+  // Convert time as HH:DD to a Date object. Assume date is today as we only fetch today's showings.
+  const timeParts = cartSummaryModel.startTime.split(':');
+  const showingTime = new Date();
+  showingTime.setHours(+timeParts[0], +timeParts[1], 0);
+
+
+  // Get the total number of seats in the screen
+  const rows = seatsLayoutModel.rows;
+  let totalSeats = 0;
+  let occupiedSeats = 0;
+  for(const row of rows) {
+    for(const seat of row.seats) {
+      if(!seat?.id) continue;
+      totalSeats++;
+      if(seat?.status !== 0) occupiedSeats++;
+    }
+  }
+
+  showing = {
+    movie,
+    time: showingTime,
+    runtime: 0,
+    screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
+    seatsOccupied: occupiedSeats,
+    seatsTotal: totalSeats
+  }
+
+  console.log(showing);
+  return showing;
 }
 
 const x = await fetchMovies();
