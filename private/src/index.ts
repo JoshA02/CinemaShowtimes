@@ -19,7 +19,11 @@ let websiteID: string;
 let circuitID: string;
 
 
-// Returns all movies showing at the chosen cinema; showing times are not included.
+/**
+ * Fetches all movies showing at the cinema, utilising the query API and the movie API.
+ * @returns An array of Movie objects, representing all movies listed for the cinema (I believe this also includes movies that are not currently showing).
+ *         If an error occurred, an empty array is returned.
+ */
 async function fetchMovies(): Promise<Movie[]> {
   assert(process.env.QUERY_API_URL_PREFIX, 'QUERY_API_URL_PREFIX not set');
   assert(process.env.QUERY_API_URL_SUFFIX, 'QUERY_API_URL_SUFFIX not set');
@@ -53,6 +57,12 @@ async function fetchMovies(): Promise<Movie[]> {
   });
 }
 
+
+/**
+ * Fetches all showings for the chosen cinema for the current day, utilising the schedule API and (via populateShowingDetails) the booking API.
+ * @param movies An array of Movie objects to fetch showings for (from fetchMovies)
+ * @returns An array of Showing objects for the chosen cinema, or an empty array if an error occurred.
+ */
 async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
@@ -68,8 +78,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
         circuit: circuitID,
         from: new Date(new Date().setHours(0, 0, 0)).toISOString(),
         movieIds: movies.map(movie => movie.id),
-        nin: [],
-        sin: [],
+        nin: [], sin: [],
         theaters: [{id: process.env.CINEMA_ID.toUpperCase(), timeZone: "Europe/London"}],
         to: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
         websiteId: websiteID
@@ -100,7 +109,13 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   return [];
 }
 
-// Makes an artificial booking for a showing, in order to get the seat map and other details.
+
+/**
+ * Populates a Showing object with additional details (seating, etc) by making a temporary booking for the showing via the booking API. Used by fetchShowings.
+ * @param showingJson The basic showing data from the API response
+ * @param movie The movie object for the showing
+ * @returns A populated Showing object, or a default object if an error occurred; the calling function (fetchShowings) will handle this gracefully.
+ */
 async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
   let showing: Showing = {
     movie: { id: '', title: '', certificate: '' },
@@ -160,5 +175,17 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   return showing;
 }
 
-const x = await fetchMovies();
-await fetchShowings(x);
+
+
+/**
+ * Fetches all movies showing at the cinema, and then fetches all showings for those movies.
+ * @returns An array of Showings for the cinema, or an empty array if an error occurred.
+ */
+export async function grabShowings(): Promise<Showing[]> {
+  try{
+    return await fetchShowings(await fetchMovies());
+  } catch (error) {
+    console.error("An error occurred when fetching data. No data will be returned. Error: \n" + error);
+    return [];
+  }
+}
