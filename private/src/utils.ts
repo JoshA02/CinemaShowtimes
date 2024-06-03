@@ -25,26 +25,50 @@ let circuitID: string;
  *         If an error occurred, an empty array is returned.
  */
 async function fetchMovies(): Promise<Movie[]> {
-  assert(process.env.QUERY_API_URL_PREFIX, 'QUERY_API_URL_PREFIX not set');
-  assert(process.env.QUERY_API_URL_SUFFIX, 'QUERY_API_URL_SUFFIX not set');
-  assert(process.env.MOVIE_API_URL_PREFIX, 'MOVIE_API_URL_PREFIX not set');
+  assert(process.env.QUERY_API_URL, 'QUERY_API_URL not set');
+  assert(process.env.QUERY_HASH_URL, 'QUERY_HASH_URL not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
+  assert(process.env.CINEMA_WEBSITE_URL, 'CINEMA_WEBSITE_URL not set');
+  assert(process.env.CINEMA_QUERY_ID_REGEX, 'CINEMA_QUERY_ID_REGEX not set');
   
-  const response = await fetch(process.env.QUERY_API_URL_PREFIX + process.env.CINEMA_ID.toLowerCase() + process.env.QUERY_API_URL_SUFFIX);
+
+  // Grab the URL for the page-data.json file from the cinema's website.
+  const websiteResponse = await fetch(process.env.CINEMA_WEBSITE_URL);
+  const websiteData = await websiteResponse.text();
+
+  const regex = process.env.CINEMA_QUERY_ID_REGEX;
+  const match = websiteData.match(regex);
+
+  if (!match || !match[1]) return [];
+
+  const response = await fetch(process.env.QUERY_API_URL.replace("{QUERY_ID}", match[1]).replace("{CINEMA_ID}", process.env.CINEMA_ID.toLowerCase()));
   const data = await response.json();
   
   // Don't crash if the API doesn't return the expected data; handle gracefully.
   if(!data?.result) return [];
   if(!data.result?.pageContext?.websiteId) return [];
   if(!data.result?.pageContext?.circuitId) return [];
-  if(!data?.staticQueryHashes[28]) return [];
+  if(!data?.staticQueryHashes) return [];
 
+  // Set the website and circuit IDs for later use.
   websiteID = data.result.pageContext.websiteId;
   circuitID = data.result.pageContext.circuitId;
-  const queryHash = data.staticQueryHashes[28];
 
-  const movieResponse = await fetch(process.env.MOVIE_API_URL_PREFIX + `${queryHash}.json`);
-  let movieData = await movieResponse.json().then((data) => data?.data?.allMovie?.nodes || []);
+  // Find the query hash for the movie data.
+  let movieData = null;
+
+  // Loop through all the hashes to find the endpoint that corresponds to the movie data
+  for (const hash of data.staticQueryHashes) {
+    const queryResponse = await fetch(process.env.QUERY_HASH_URL.replace("{QUERY_HASH}", hash).replace("{QUERY_ID}", match[1]));
+    const queryData = await queryResponse.json();
+    if(queryData?.data?.allMovie?.nodes){
+      // Found query hash for movie data
+      movieData = queryData.data.allMovie.nodes;
+      break;
+    }
+  }
+
+  if(!movieData) return [];
 
   // Exclude movies not showing at the chosen cinema.
   movieData = movieData.filter((movie: any) => {
@@ -67,8 +91,6 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
   assert(circuitID, 'Circuit ID not set. Did you forget to call fetchMovies()?');
   assert(websiteID, 'Website ID not set. Did you forget to call fetchMovies()?');
-
-  console.log('Fetching showings...');
 
   const showings: Showing[] = [];
 
@@ -104,7 +126,6 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
     const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing, movie));
     const updatedShowings: Showing[] = await Promise.all(detailPromises);
     showings.push(...updatedShowings.filter(showing => showing.movie.id === movieID));
-    // console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
   }
 
   return showings;
@@ -184,9 +205,10 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
  */
 export async function grabShowings(): Promise<Showing[]> {
 
-  if(!process.env.QUERY_API_URL_PREFIX || !process.env.QUERY_API_URL_SUFFIX || !process.env.MOVIE_API_URL_PREFIX || !process.env.CINEMA_ID || !process.env.SCHEDULE_API) {
+  if(!process.env.QUERY_API_URL || !process.env.QUERY_HASH_URL || !process.env.CINEMA_ID || !process.env.SCHEDULE_API || !process.env.CINEMA_WEBSITE_URL || !process.env.CINEMA_QUERY_ID_REGEX) {
     console.error('One or more required environment variables are not set.\n' +
-    'Required variables: QUERY_API_URL_PREFIX, QUERY_API_URL_SUFFIX, MOVIE_API_URL_PREFIX, CINEMA_ID, SCHEDULE_API\nNo data will be returned.');
+    'Required variables: QUERY_API_URL, QUERY_HASH_URL, CINEMA_ID, SCHEDULE_API, CINEMA_WEBSITE_URL, CINEMA_QUERY_ID_REGEX' +
+    '\nNo data will be returned.');
     return [];
   }
 
