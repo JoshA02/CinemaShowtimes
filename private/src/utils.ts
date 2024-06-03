@@ -68,6 +68,8 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(circuitID, 'Circuit ID not set. Did you forget to call fetchMovies()?');
   assert(websiteID, 'Website ID not set. Did you forget to call fetchMovies()?');
 
+  console.log('Fetching showings...');
+
   const showings: Showing[] = [];
 
   const response = await fetch(process.env.SCHEDULE_API,
@@ -105,7 +107,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
     // console.log("Populated all showings for movie: " + movies.find(movie => movie.id === movieID)?.title);
   }
 
-  return [];
+  return showings;
 }
 
 
