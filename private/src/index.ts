@@ -34,8 +34,7 @@ app.get('/showtimes', async (_req, res) => {
   // If the cached fetch is younger than the max fetch age, return it.
   if(lastFetchTime + MAX_FETCH_AGE > Date.now()) {
     console.log('Returning cached fetch.');
-    res.json(lastFetch);
-    return;
+    return res.json({data: lastFetch, timeFetched: lastFetchTime});
   }
 
   // If the cached fetch is older than the max fetch age, fetch new data.
@@ -45,7 +44,7 @@ app.get('/showtimes', async (_req, res) => {
   grabShowings().then(showings => {
     lastFetch = showings;
     lastFetchTime = Date.now();
-    res.json(showings);
+    return res.json({data: showings, timeFetched: lastFetchTime});
   }).catch(error => {
     console.error(error);
     res.status(500).json({ error: 'An error occurred while fetching showtimes.' });
