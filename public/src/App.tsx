@@ -60,7 +60,6 @@ function App() {
 
       {mode === 'showings' && (
         <div>
-          <p>{new Date().toLocaleTimeString()}</p>
           {showings.map((showing, index) => (
             <ShowingListItem showing={showing} key={index} farAhead={new Date(showing.time) > new Date(new Date().getMilliseconds() + FAR_AHEAD_THRESHOLD)}/>
           ))}
