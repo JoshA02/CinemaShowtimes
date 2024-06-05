@@ -4,7 +4,8 @@ import './App.css';
 
 function App() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
-  const apiURL = process.env.REACT_APP_API_URL;
+  const [showings, setShowings] = useState([] as any[]);
+  const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
 
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
@@ -15,23 +16,36 @@ function App() {
   }, [secsSinceUpdate]);
 
   // Fetch the schedule from the server:
-  useEffect(() => {
+  function updateSchedule() {
+    const apiURL = process.env.REACT_APP_API_URL;
     fetch(apiURL + '/showtimes')
       .then(res => res.json())
       .then(data => {
-        console.log(data);
+        console.log(data.data);
+        setShowings(data);
+        setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
       });
-  }, [apiURL]);
+  }
+
+  useEffect(() => {
+    updateSchedule();
+  }, []);
   
+
   return (
     <div className="App">
       <h2>Schedule</h2>
       <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)}</h3></span>
       <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>67</h3></span>
 
-      <div className='showing-list'>
-
+      <div className="viewSelectionContainer">
+        <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}>Showings</div>
+        <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}>Attendance</div>
       </div>
+
+      {/* <div className='showing-list'>
+        <button onClick={() => updateSchedule()}>Refresh</button>
+      </div> */}
     </div>
   );
 }
@@ -43,7 +57,7 @@ function SecsToHMS(secs: number): string {
   return (
     (hours > 0 ? `${hours}h ` : '') +
     (minutes > 0 ? `${minutes}m ` : '') +
-    (seconds > 0 ? `${seconds}s` : '')
+    (`${seconds}s`)
   );
 }
 
