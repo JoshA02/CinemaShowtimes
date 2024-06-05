@@ -41,6 +41,15 @@ span {
   font-size: 16px;
 }
 
+.statusMessage {
+  overflow: hidden;
+  display: grid;
+  height: 0;
+
+  /* animate both fadeIn and flash: */
+  animation: fadeIn 1s ease-in forwards, flash 1s ease-in infinite;
+}
+
 .viewSelectionContainer {
   display: flex;
   justify-content: space-around;
@@ -59,4 +68,32 @@ span {
   font-weight: 600;
 }
 
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    height: 0;
+  }
+  50% {
+    opacity: 0;
+    height: 0;
+  }
+  51% {
+    height: 30px;
+  }
+  100% {
+    opacity: 1;
+    height: 30px;
+  }
+}
 
+@keyframes flash {
+  0% {
+    color: #ffffff;
+  }
+  50% {
+    color: #686868;
+  }
+  100% {
+    color: #ffffff;
+  }
+}

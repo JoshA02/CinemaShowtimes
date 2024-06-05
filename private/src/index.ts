@@ -3,7 +3,8 @@ import cors from 'cors';
 import { Showing, grabShowings } from './utils.js';
 
 
-const MAX_FETCH_AGE = (60000 * 5); // 5 minutes in milliseconds
+const MAX_FETCH_AGE = (60000 * 5); // 5 minutes in milliseconds; any data older than this will be re-fetched.
+// const MAX_FETCH_AGE = (5000); // 5 seconds in milliseconds
 
 if(!process.env.FRONTEND_URL || !process.env.EXPRESS_PORT) {
   console.error('One or more required environment variables are not set.\n' +

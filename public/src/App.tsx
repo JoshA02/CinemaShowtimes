@@ -8,6 +8,7 @@ function App() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [showings, setShowings] = useState([] as Showing[]);
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
+  const [statusMessage, setStatusMessage] = useState('' as string);
 
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
@@ -18,9 +19,11 @@ function App() {
   }, [secsSinceUpdate]);
 
   // Fetch the schedule from the server:
-  function updateSchedule() {
+  async function updateSchedule() {
     const apiURL = process.env.REACT_APP_API_URL;
-    fetch(apiURL + '/showtimes')
+
+    setStatusMessage('Updating schedule...');
+    await fetch(apiURL + '/showtimes')
       .then(res => res.json())
       .then(data => {
         let tempShowings: Showing[] = data.data;
@@ -32,7 +35,9 @@ function App() {
         tempShowings = tempShowings.sort((a, b) => a.time > b.time ? 1 : -1);
         setShowings(tempShowings);
         setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
-      });
+        setStatusMessage('');
+      })
+      .catch(() => {throw new Error('Failed to fetch showtimes.')});
   }
 
   function GetRemainingAttendance(): number {
@@ -47,7 +52,17 @@ function App() {
   }
 
   useEffect(() => {
-    updateSchedule();
+    function scheduleUpdateHandler() {
+      updateSchedule()
+        .then(() => setTimeout(() => scheduleUpdateHandler(), 1000 * 30)) // Update every 30 seconds
+        .catch((e) => {
+          console.log(e);
+          setStatusMessage('Failed to update schedule. Retrying...');
+          setTimeout(() => scheduleUpdateHandler(), 1000 * 3); // Retry every 3 seconds
+        });
+    }
+    
+    scheduleUpdateHandler();
   }, []);
   
 
@@ -56,11 +71,13 @@ function App() {
       <h2>Schedule</h2>
       <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)}</h3></span>
       <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
+      {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
       <div className="viewSelectionContainer">
         <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
         <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
       </div>
+
 
       {mode === 'showings' && (
         <div>
