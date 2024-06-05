@@ -77,7 +77,7 @@ function Schedule() {
   return (
     <div className="App">
       <h2>Schedule</h2>
-      <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)}</h3></span>
+      <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)} ago</h3></span>
       <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
       {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
