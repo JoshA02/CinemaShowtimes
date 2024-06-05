@@ -69,6 +69,10 @@ function App() {
           ))}
         </div>
       )}
+
+      {mode === 'attendance' && (
+        <h2 className='bold'>Coming Soon</h2>
+      )}
     </div>
   );
 }
