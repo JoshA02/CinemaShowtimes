@@ -52,8 +52,8 @@ function App() {
       <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
 
       <div className="viewSelectionContainer">
-        <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}>Showings</div>
-        <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}>Attendance</div>
+        <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
+        <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
       </div>
 
       {mode === 'showings' && (
