@@ -1,14 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import { Showing, grabShowings } from './utils.js';
+import {generateSessionId, validSession} from './sessions.js';
+import assert from 'assert';
 
 
 const MAX_FETCH_AGE = (60000 * 5); // 5 minutes in milliseconds; any data older than this will be re-fetched.
 // const MAX_FETCH_AGE = (5000); // 5 seconds in milliseconds
 
-if(!process.env.FRONTEND_URL || !process.env.EXPRESS_PORT) {
+if(!process.env.FRONTEND_URL || !process.env.EXPRESS_PORT || !process.env.FRONTEND_PASSWORD) {
   console.error('One or more required environment variables are not set.\n' +
-  'Required variables: FRONTEND_URL, EXPRESS_PORT\nExiting...');
+  'Required variables: FRONTEND_URL, EXPRESS_PORT, FRONTEND_PASSWORD\nExiting...');
   process.exit(1);
 }
 
@@ -27,7 +29,14 @@ let isFetching = false; // Prevents multiple fetches at once.
 let lastFetch: Showing[] = []; // Cache the last fetch to prevent multiple fetches in a short time.
 let lastFetchTime = 0; // Time of the last fetch in milliseconds.
 
-app.get('/showtimes', async (_req, res) => {
+app.get('/showtimes', async (req, res) => {
+
+  // Validate the session
+  if(!validSession(req.query.sessionId as string)) {
+    await new Promise(r => setTimeout(r, 1000)); // Slow the response down to make it harder to spam the endpoint
+    res.status(401).send('Invalid session');
+    return;
+  }
 
   // Keep waiting until the last fetch is done
   while(isFetching) await new Promise(r => setTimeout(r, 100));
@@ -52,6 +61,19 @@ app.get('/showtimes', async (_req, res) => {
   }).finally(() => {
     isFetching = false;
   });
+});
+
+app.get('/authenticate', async (req, res) => {
+  assert(process.env.FRONTEND_PASSWORD, 'FRONTEND_PASSWORD is not set in the environment variables.');
+
+  const token = req.query.token as string;
+  if(token != process.env.FRONTEND_PASSWORD) {
+    await new Promise(r => setTimeout(r, 1000)); // Slow the response down to make it harder to guess the token
+    return res.status(401).send('Invalid token');
+  }
+
+  const sessionId = generateSessionId();
+  res.send({sessionId}); // Send the generated session id back to the client; they'll use this to make requests.
 });
 
 app.listen(process.env.EXPRESS_PORT, () => {
