@@ -4,6 +4,8 @@ import './App.css';
 import {Showing} from './types';
 import ShowingListItem from './components/ShowingListItem';
 
+const FAR_AHEAD_THRESHOLD = 1000 * 60 * 30; // 30 minutes in milliseconds
+
 function App() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [showings, setShowings] = useState([] as Showing[]);
@@ -58,8 +60,9 @@ function App() {
 
       {mode === 'showings' && (
         <div>
+          <p>{new Date().toLocaleTimeString()}</p>
           {showings.map((showing, index) => (
-            <ShowingListItem showing={showing} key={index}/>
+            <ShowingListItem showing={showing} key={index} farAhead={new Date(showing.time) > new Date(new Date().getMilliseconds() + FAR_AHEAD_THRESHOLD)}/>
           ))}
         </div>
       )}

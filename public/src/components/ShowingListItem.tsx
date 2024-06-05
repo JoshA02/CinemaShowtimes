@@ -3,10 +3,10 @@ import {Showing} from '../types'
 import '../App.css'
 import './ShowingListItem.css'
 
-export default function ShowingListItem({showing}: {showing: Showing}) {
+export default function ShowingListItem({showing, farAhead = false}: {showing: Showing, farAhead?: boolean}) {
   const showTime = new Date(showing.time);
   return (
-    <div className='showing'>
+    <div className={`showing ${farAhead ? 'faded' : ''}`}>
       <div className="left">
         <span className='title'>{showing.movie.title} · <span className='rating'>{showing.movie.certificate}</span></span>
         <span>{showTime.toLocaleTimeString(
