@@ -3,12 +3,15 @@ import logo from './logo.svg';
 import '../App.css';
 import {Showing} from '../types';
 import ShowingListItem from '../components/ShowingListItem';
+import AttendanceListItem from '../components/AttendanceListItem';
 
 function Schedule() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [showings, setShowings] = useState([] as Showing[]);
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
+  const hourRoundDown = new Date().setMinutes(0, 0, 0);
+  const hoursTillMidnight = 24 - new Date().getHours();
 
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
@@ -66,6 +69,13 @@ function Schedule() {
 
     scheduleUpdateHandler();
   }, []);
+
+  function GetShowingsBetween(start: Date, end: Date): Showing[] {
+    return showings.filter(showing => {
+      const showingTime = new Date(showing.time);
+      return showingTime >= start && showingTime <= end;
+    });
+  }
   
 
   return (
@@ -90,7 +100,16 @@ function Schedule() {
       )}
 
       {mode === 'attendance' && (
-        <h2 className='bold'>Coming Soon</h2>
+        <div>
+          {/* One hour from this exact time */}
+          <AttendanceListItem start={new Date()} end={new Date(Date.now() + 1000 * 60 * 60)} attendance={GetShowingsBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60)).reduce((acc, showing) => acc + showing.seatsOccupied, 0)} />
+          {
+            // Create an attendance list item for each hour in the future, including the current hour
+            Array.from({length: hoursTillMidnight}, (_, i) => i).map((_, i) => (
+              <AttendanceListItem start={new Date(hourRoundDown + 1000 * 60 * 60 * (i))} end={new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))} attendance={GetShowingsBetween(new Date(hourRoundDown + 1000 * 60 * 60 * (i)), new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))).reduce((acc, showing) => acc + showing.seatsOccupied, 0)} key={i} />
+            ))
+          }
+        </div>
       )}
     </div>
   );

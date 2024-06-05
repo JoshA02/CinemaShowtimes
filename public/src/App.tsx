@@ -2,6 +2,8 @@ import React, {useEffect, useState} from 'react';
 import Schedule from './pages/Schedule';
 import Login from './pages/Login';
 
+export const BUSY_THRESHOLD = 25;
+
 export default function App() {
   
   const [sessionId, setSessionId] = useState('' as string);
