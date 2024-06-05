@@ -49,6 +49,9 @@ span {
   /* animate both fadeIn and flash: */
   animation: fadeIn 1s ease-in forwards, flash 1s ease-in infinite;
 }
+.statusMessage.noFlash {
+  animation: fadeIn 1s ease-in forwards;
+}
 
 .viewSelectionContainer {
   display: flex;
