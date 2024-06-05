@@ -7,6 +7,8 @@ function App() {
   const [showings, setShowings] = useState([] as any[]);
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
 
+  const currentDate = new Date();
+
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
     const interval = setInterval(() => {
@@ -22,9 +24,19 @@ function App() {
       .then(res => res.json())
       .then(data => {
         console.log(data.data);
-        setShowings(data);
+        setShowings(data.data);
         setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
       });
+  }
+
+  function GetRemainingAttendance(): number {
+    if(!showings) return 0;
+    return(
+      showings.filter(showing => {
+        const showingTime = new Date(showing.time);
+        return showingTime > currentDate && showingTime.getDate() === currentDate.getDate();
+      }).reduce(( (acc, showing) => acc + showing.seatsOccupied ), 0)
+    );
   }
 
   useEffect(() => {
@@ -36,7 +48,7 @@ function App() {
     <div className="App">
       <h2>Schedule</h2>
       <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)}</h3></span>
-      <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>67</h3></span>
+      <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()}</h3></span>
 
       <div className="viewSelectionContainer">
         <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}>Showings</div>
