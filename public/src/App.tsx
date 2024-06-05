@@ -7,8 +7,6 @@ function App() {
   const [showings, setShowings] = useState([] as any[]);
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
 
-  const currentDate = new Date();
-
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
     const interval = setInterval(() => {
@@ -31,6 +29,7 @@ function App() {
 
   function GetRemainingAttendance(): number {
     if(!showings) return 0;
+    const currentDate = new Date();
     return(
       showings.filter(showing => {
         const showingTime = new Date(showing.time);
