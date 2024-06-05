@@ -1,10 +1,12 @@
 import React, {useEffect, useState} from 'react';
 import logo from './logo.svg';
 import './App.css';
+import {Showing} from './types';
+import ShowingListItem from './components/ShowingListItem';
 
 function App() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
-  const [showings, setShowings] = useState([] as any[]);
+  const [showings, setShowings] = useState([] as Showing[]);
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
 
   // Upon loading, keep ticking the time since last update:
@@ -47,16 +49,20 @@ function App() {
     <div className="App">
       <h2>Schedule</h2>
       <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)}</h3></span>
-      <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()}</h3></span>
+      <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
 
       <div className="viewSelectionContainer">
         <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}>Showings</div>
         <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}>Attendance</div>
       </div>
 
-      {/* <div className='showing-list'>
-        <button onClick={() => updateSchedule()}>Refresh</button>
-      </div> */}
+      {mode === 'showings' && (
+        <div>
+          {showings.map((showing, index) => (
+            <ShowingListItem showing={showing} key={index}/>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

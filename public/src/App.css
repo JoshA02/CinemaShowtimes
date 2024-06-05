@@ -7,35 +7,6 @@
 body {
   margin: 0 16px;
 }
-
-.flex-hoz {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-}
-.bold {
-  font-weight: bold;
-}
-
-
-.viewSelectionContainer {
-  display: flex;
-  justify-content: space-around;
-  margin-top: 38px;
-}
-.selection {
-  padding: 6px 0;
-  cursor: pointer;
-  flex: 1;
-  border-radius: 2px;
-}
-.selection.active {
-  background-color: #1F1F1F;
-  font-weight: bold;
-}
-
-
 h2 {
   text-align: center;
   font-size: 22px;
@@ -56,3 +27,32 @@ h3 {
 .App {
   text-align: center;
 }
+.flex-hoz {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.bold {
+  font-weight: bold;
+}
+
+
+.viewSelectionContainer {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 38px;
+  font-size: small;
+}
+.selection {
+  padding: 6px 0;
+  cursor: pointer;
+  flex: 1;
+  border-radius: 2px;
+}
+.selection.active {
+  background-color: #1F1F1F;
+  font-weight: 600;
+}
+
+
