@@ -50,13 +50,7 @@ function Schedule() {
 
   function GetRemainingAttendance(): number {
     if(!showings) return 0;
-    const currentDate = new Date();
-    return(
-      showings.filter(showing => {
-        const showingTime = new Date(showing.time);
-        return showingTime > currentDate && showingTime.getDate() === currentDate.getDate();
-      }).reduce(( (acc, showing) => acc + showing.seatsOccupied ), 0)
-    );
+    return(showings.reduce(( (acc, showing) => acc + showing.seatsOccupied ), 0));
   }
 
   useEffect(() => {
