@@ -21,11 +21,19 @@ function Schedule() {
   // Fetch the schedule from the server:
   async function updateSchedule() {
     const apiURL = process.env.REACT_APP_API_URL;
+    const currentSessionId = new URLSearchParams(window.location.search).get('sessionId') || '';
+    const searchParams = new URLSearchParams();
+    searchParams.append('sessionId', currentSessionId);
 
     setStatusMessage('Updating schedule...');
-    await fetch(apiURL + '/showtimes')
-      .then(res => res.json())
-      .then(data => {
+    await fetch(apiURL + `/showtimes?${searchParams.toString()}`).then(res => {
+      if(!res.ok){
+        if(res.status === 401) return window.location.href = '/'; // Redirect to login page if session is invalid.
+        throw new Error(`Failed to fetch showtimes. Status code: ${res.status}`);
+      }
+      return res.json();
+    }).then(data => {
+        if(!data.data) throw new Error('No showings returned.');
         let tempShowings: Showing[] = data.data;
         if(!tempShowings) return;
         tempShowings = tempShowings.filter(showing => {

@@ -34,7 +34,7 @@ app.get('/showtimes', async (req, res) => {
   // Validate the session
   if(!validSession(req.query.sessionId as string)) {
     await new Promise(r => setTimeout(r, 1000)); // Slow the response down to make it harder to spam the endpoint
-    res.status(401).send('Invalid session');
+    res.status(401).send({message: 'Invalid session'});
     return;
   }
 
@@ -69,7 +69,7 @@ app.get('/authenticate', async (req, res) => {
   const token = req.query.token as string;
   if(token != process.env.FRONTEND_PASSWORD) {
     await new Promise(r => setTimeout(r, 1000)); // Slow the response down to make it harder to guess the token
-    return res.status(401).send('Invalid token');
+    return res.status(401).send({message: 'Invalid token'});
   }
 
   const sessionId = generateSessionId();
