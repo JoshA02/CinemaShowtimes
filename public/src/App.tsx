@@ -4,8 +4,6 @@ import './App.css';
 import {Showing} from './types';
 import ShowingListItem from './components/ShowingListItem';
 
-const FAR_AHEAD_THRESHOLD = 1000 * 60 * 30; // 30 minutes in milliseconds
-
 function App() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [showings, setShowings] = useState([] as Showing[]);
@@ -25,8 +23,14 @@ function App() {
     fetch(apiURL + '/showtimes')
       .then(res => res.json())
       .then(data => {
-        console.log(data.data);
-        setShowings(data.data);
+        let tempShowings: Showing[] = data.data;
+        if(!tempShowings) return;
+        tempShowings = tempShowings.filter(showing => {
+          const showingTime = new Date(showing.time);
+          return showingTime > new Date() && showingTime.getDate() === new Date().getDate()
+        });
+        tempShowings = tempShowings.sort((a, b) => a.time > b.time ? 1 : -1);
+        setShowings(tempShowings);
         setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
       });
   }
@@ -61,7 +65,7 @@ function App() {
       {mode === 'showings' && (
         <div>
           {showings.map((showing, index) => (
-            <ShowingListItem showing={showing} key={index} farAhead={new Date(showing.time) > new Date(new Date().getMilliseconds() + FAR_AHEAD_THRESHOLD)}/>
+            <ShowingListItem showing={showing} key={index}/>
           ))}
         </div>
       )}

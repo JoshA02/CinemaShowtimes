@@ -3,11 +3,16 @@
   border-bottom: 1px solid #181818;
   display: flex;
   flex-direction: row;
+  margin: 2px 0;
   /* border: 1px solid #181818; */
   /* margin-bottom: 8px; */
 }
 .showing.faded {
   opacity: 0.4;
+}
+.showing.busy {
+  background-color: #8F2020;
+  animation: busy 1s infinite;
 }
 .showing .left {
   display: flex;
@@ -34,4 +39,16 @@
   padding: 6px 0;
   width: 42px;
   justify-content: center;
+}
+
+@keyframes busy {
+  0% {
+    background-color: #8F2020;
+  }
+  50% {
+    background-color: #b01c1c;
+  }
+  100% {
+    background-color: #8F2020;
+  }
 }
