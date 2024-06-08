@@ -3,6 +3,9 @@
 ## Project Purpose
 This project is developed for educational purposes to demonstrate skills in React, Docker, and API integration. It provides an example of how to access and display showtimes and movie titles from a cinema's API.
 
+## Real-World Application
+While primarily an educational project, this application was initially developed as a **personal initiative** to aid employees at a cinema by providing a quick and easy way to access showtime information. The ability to display this information on devices such as an Apple Watch allows staff to have immediate access to guest numbers and scheduling, which is particularly useful when away from the main systems. Additionally, it organises the schedule chronologically, making it fast and convenient to view.
+
 ## Structure and Tech Stack
 This project consists of:
 - A frontend (React, via Create React App)
