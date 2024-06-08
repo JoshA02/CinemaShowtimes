@@ -1,0 +1,10 @@
+# Docker-compose file for running the application
+
+version: '3.8'
+services:
+  cinema:
+    container_name: cinema
+    build: .
+    ports:
+      - 3000:3000
+      - 3001:3001

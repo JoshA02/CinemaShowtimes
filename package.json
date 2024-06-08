@@ -22,7 +22,8 @@
     "back-dev": "npm run back-build && nodemon --env-file=.env private/dist/index.js",
     "back-prod": "npm run back-build && node --env-file=.env private/dist/index.js",
     "front-build": "cd public && npx react-scripts build",
-    "front-dev": "cd public && npx react-scripts start"
+    "front-dev": "cd public && npx react-scripts start",
+    "front-prod": "npm run front-build && npx serve -s public/build"
   },
   "keywords": [],
   "author": "",
