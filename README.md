@@ -13,7 +13,7 @@ This project consists of:
 - A dockerfile and docker-compose that builds and runs both the frontend and backend.
 
 ## Educational Use Disclaimer
-This project is intended solely for educational purposes. It is not in a runnable state as-is (required env vars are not provided), and the code is designed to illustrate the process of fetching and displaying data from an API. The specific API endpoints used in this project are stored in environment variables and are not included in the public repository.
+This project is intended solely for educational purposes. It is not in a runnable state as-is (required env vars are not provided in full), and the code is designed to illustrate the process of fetching and displaying data from an API. The specific API endpoints used in this project are stored in environment variables and are not included in the public repository.
 
 ## Important Note
 - This project does not use or replicate any proprietary designs, logos, or trademarks from any cinema.
