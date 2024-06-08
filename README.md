@@ -3,10 +3,11 @@
 ## Project Purpose
 This project is developed for educational purposes to demonstrate skills in React, Docker, and API integration. It provides an example of how to access and display showtimes and movie titles from a cinema's API.
 
-## Images
-Showings Tab             |  General Attendance Tab
-:-------------------------:|:-------------------------:
-![A screenshot of the showings tab of the frontend, showing a chronological list of showtimes, including the movie name, rating, time of the showing, and the total number of guests booked for this showing.](/screenshots/frontend-showings.jpg "The showings tab.")  |  ![A screenshot of the attendance tab of the frontend, showing a chronological list of each hour's total number of guests, with the first list item representing the next hour.](/screenshots/frontend-attendance.jpg "The attendance tab.")
+## Structure and Tech Stack
+This project consists of:
+- A frontend (React, via Create React App)
+- A backend API (ExpressJS)
+- A dockerfile and docker-compose that builds and runs both the frontend and backend.
 
 ## Educational Use Disclaimer
 This project is intended solely for educational purposes. It is not in a runnable state as-is (required env vars are not provided), and the code is designed to illustrate the process of fetching and displaying data from an API. The specific API endpoints used in this project are stored in environment variables and are not included in the public repository.
@@ -20,11 +21,10 @@ This project is intended solely for educational purposes. It is not in a runnabl
 ## API Integration Explanation
 The backend code in this project is tailored to a specific cinema's API to demonstrate how to interact with such services. The methods used here can be adapted to other APIs with similar structures.
 
-## Structure
-This project consists of:
-- A frontend (React, via Create React App)
-- A backend API (ExpressJS)
-- A dockerfile and docker-compose that builds and runs both the frontend and backend.
+## Images
+Showings Tab             |  General Attendance Tab
+:-------------------------:|:-------------------------:
+![A screenshot of the showings tab of the frontend, showing a chronological list of showtimes, including the movie name, rating, time of the showing, and the total number of guests booked for this showing.](/screenshots/frontend-showings.jpg "The showings tab.")  |  ![A screenshot of the attendance tab of the frontend, showing a chronological list of each hour's total number of guests, with the first list item representing the next hour.](/screenshots/frontend-attendance.jpg "The attendance tab.")
 
 ## Backend Authentication Walkthrough
 When a user first visits the frontend site, it attempts to grab a `sessionId` from the URL parameters.
