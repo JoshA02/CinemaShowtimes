@@ -4,8 +4,9 @@
 This project is developed for educational purposes to demonstrate skills in React, Docker, and API integration. It provides an example of how to access and display showtimes and movie titles from a cinema's API.
 
 ## Images
-![A screenshot of the showings tab of the frontend, showing a chronological list of showtimes, including the movie name, rating, time of the showing, and the total number of guests booked for this showing.](/screenshots/frontend-showings.webp "The showings tab.")
-![A screenshot of the attendance tab of the frontend, showing a chronological list of each hour's total number of guests, with the first list item representing the next hour.](/screenshots/frontend-attendance.jpg "The attendance tab.")
+Showings Tab             |  General Attendance Tab
+:-------------------------:|:-------------------------:
+![A screenshot of the showings tab of the frontend, showing a chronological list of showtimes, including the movie name, rating, time of the showing, and the total number of guests booked for this showing.](/screenshots/frontend-showings.jpg "The showings tab.")  |  ![A screenshot of the attendance tab of the frontend, showing a chronological list of each hour's total number of guests, with the first list item representing the next hour.](/screenshots/frontend-attendance.jpg "The attendance tab.")
 
 ## Educational Use Disclaimer
 This project is intended solely for educational purposes. It is not in a runnable state as-is (required env vars are not provided), and the code is designed to illustrate the process of fetching and displaying data from an API. The specific API endpoints used in this project are stored in environment variables and are not included in the public repository.
