@@ -23,7 +23,7 @@ export default function ShowingListItem({showing}: {showing: Showing}) {
         )}</span>
       </div>
       <div className="right">
-        <span className={`attendance ${!isFarAhead && isBusy ? 'bold' : ''}`}>{showing.seatsOccupied}</span>
+        <span className={`attendance ${isBusy ? 'bold' : ''}`}>{showing.seatsOccupied}</span>
       </div>
     </div>
   )
