@@ -1,7 +1,7 @@
 # Cinema Showtimes Project
 
 ## Project Purpose
-This project is developed for educational purposes to demonstrate skills in React, Docker, and API integration. It provides an example of how to access and display showtimes and movie titles from a cinema's API.
+This project is developed for educational purposes to demonstrate skills in React, Docker, ExpressJS, and API integration. It provides an example of how to access and display showtimes and movie titles from a cinema's API.
 
 ## Real-World Application
 While primarily an educational project, this application was initially developed as a **personal initiative** to aid employees at a cinema by providing a quick and easy way to access showtime information. The ability to display this information on devices such as an Apple Watch allows staff to have immediate access to guest numbers and scheduling, which is particularly useful when away from the main systems. Additionally, it organises the schedule chronologically, making it fast and convenient to view.
@@ -19,7 +19,7 @@ This project is intended solely for educational purposes. It is not in a runnabl
 - This project does not use or replicate any proprietary designs, logos, or trademarks from any cinema.
 - No security measures of any API were bypassed during any stage of development of this project.
 - This project does not have any commercial purpose and should not be used for any commercial gain.
-- The specific cinema's terms and conditions were closly insected to ensure strict compliance.
+- The specific cinema's terms and conditions were closely inspected to ensure strict compliance.
 
 ## API Integration Explanation
 The backend code in this project is tailored to a specific cinema's API to demonstrate how to interact with such services. The methods used here can be adapted to other APIs with similar structures.
