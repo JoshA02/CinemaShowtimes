@@ -8,6 +8,8 @@ import AttendanceListItem from '../components/AttendanceListItem';
 function Schedule() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [showings, setShowings] = useState([] as Showing[]);
+  const [unfilteredShowings, setUnfilteredShowings] = useState([] as Showing[]);
+
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
   const hourRoundDown = new Date().setMinutes(0, 0, 0);
@@ -45,6 +47,7 @@ function Schedule() {
         });
         tempShowings = tempShowings.sort((a, b) => a.time > b.time ? 1 : -1);
         setShowings(tempShowings);
+        setUnfilteredShowings(data.data as Showing[]);
         setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
         setStatusMessage('');
       })
@@ -70,13 +73,18 @@ function Schedule() {
     scheduleUpdateHandler();
   }, []);
 
-  function GetShowingsBetween(start: Date, end: Date): Showing[] {
-    return showings.filter(showing => {
+  /**
+   * Get the total attendance between two dates
+   * @param start The start date
+   * @param end The end date
+   * @returns The total attendance between the two dates
+   */
+  function GetAttendanceBetween(start: Date, end: Date): number {
+    return unfilteredShowings.filter(showing => {
       const showingTime = new Date(showing.time);
       return showingTime >= start && showingTime <= end;
-    });
-  }
-  
+    }).reduce((acc, showing) => acc + showing.seatsOccupied, 0);
+  }  
 
   return (
     <div className="App">
@@ -102,11 +110,11 @@ function Schedule() {
       {mode === 'attendance' && (
         <div>
           {/* One hour from this exact time */}
-          <AttendanceListItem start={new Date()} end={new Date(Date.now() + 1000 * 60 * 60)} attendance={GetShowingsBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60)).reduce((acc, showing) => acc + showing.seatsOccupied, 0)} />
+          <AttendanceListItem start={new Date()} end={new Date(Date.now() + 1000 * 60 * 60)} attendance={GetAttendanceBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60))} />
           {
             // Create an attendance list item for each hour in the future, including the current hour
             Array.from({length: hoursTillMidnight}, (_, i) => i).map((_, i) => (
-              <AttendanceListItem start={new Date(hourRoundDown + 1000 * 60 * 60 * (i))} end={new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))} attendance={GetShowingsBetween(new Date(hourRoundDown + 1000 * 60 * 60 * (i)), new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))).reduce((acc, showing) => acc + showing.seatsOccupied, 0)} key={i} />
+              <AttendanceListItem start={new Date(hourRoundDown + 1000 * 60 * 60 * (i))} end={new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))} attendance={GetAttendanceBetween(new Date(hourRoundDown + 1000 * 60 * 60 * (i)), new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1)))} key={i} />
             ))
           }
         </div>
