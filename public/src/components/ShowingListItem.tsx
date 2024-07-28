@@ -18,9 +18,9 @@ export default function ShowingListItem({showing}: {showing: Showing}) {
     <div className={`listItem ${isFarAhead ? 'faded' : isBusy ? 'busy' : ''}`}>
       <div className="left">
         <span className='title'>{showing.movie.title} · <span className='rating'>{showing.movie.certificate}</span></span>
-        <span>{showTime.toLocaleTimeString(
-          'en-GB', {hour: '2-digit', minute: '2-digit'}
-        )}</span>
+        <span>
+          {showTime.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'})}  ·  Screen {showing.screen}
+        </span>
       </div>
       <div className="right">
         <span className={`attendance ${isBusy ? 'bold' : ''}`}>{showing.seatsOccupied}</span>
