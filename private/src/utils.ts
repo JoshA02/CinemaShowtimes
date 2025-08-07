@@ -28,6 +28,8 @@ let showings: Showing[] = [];
 async function fetchMovies(): Promise<Movie[]> {
   assert(process.env.MOVIES_API, 'MOVIES_API not set');
 
+  logWithTimestamp("Fetching movies...");
+
   // Fetch all the IDs of movies in the cinema's schedule
   const movieIDs: string[] = [];
   for(const movieID in schedule) {
@@ -57,6 +59,8 @@ async function fetchSchedule(): Promise<void> {
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
 
+  logWithTimestamp("Fetching schedule...");
+
   const response = await fetch(process.env.SCHEDULE_API,
     {
       method: 'POST',
@@ -77,13 +81,15 @@ async function fetchSchedule(): Promise<void> {
 }
 
 /**
- * Fetches all showings for the chosen cinema for the current day, utilising the schedule API and (via populateShowingDetails) the booking API.
+ * Fetches all showings for the chosen cinema for the current day
  * @param movies An array of Movie objects to fetch showings for (from fetchMovies)
  * @returns An array of Showing objects for the chosen cinema, or an empty array if an error occurred.
  */
 async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
+
+  logWithTimestamp("Fetching showings...");
 
   await Promise.all(movies.map((movie: Movie) => processMovie(movie)));
 
@@ -101,6 +107,10 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   return showings;
 }
 
+/**
+ * Fetches all showings for a movie for today, utilising the schedule API and booking API. Stores showings in showings var
+ * @param movie The movie to fetch the showings of
+ */
 async function processMovie(movie: Movie) {
   const todaysShowings = schedule[movie.id][new Date().toISOString().split('T')[0]];
 
@@ -176,12 +186,17 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
 }
 
 
+export function logWithTimestamp(message: string, omitNewline: boolean = false) {
+  process.stdout.write(`${new Date().toLocaleTimeString()}: ${message}${omitNewline ? '' : '\n'}`);
+}
+
+
 
 /**
  * Fetches all movies showing at the cinema, and then fetches all showings for those movies.
- * @returns An array of Showings for the cinema, or an empty array if an error occurred.
+ * @returns An array of Showings for the cinema, or undefined if an error occurred.
  */
-export async function grabShowings(): Promise<Showing[]> {
+export async function grabShowings(): Promise<Showing[] | undefined> {
 
   if(!process.env.CINEMA_ID || !process.env.SCHEDULE_API) {
     console.error('One or more required environment variables are not set.\n' +
@@ -200,6 +215,6 @@ export async function grabShowings(): Promise<Showing[]> {
     return await fetchShowings(await fetchMovies());
   } catch (error) {
     console.error("An error occurred when fetching data. No data will be returned. Error: \n" + error);
-    return [];
+    return undefined;
   }
 }

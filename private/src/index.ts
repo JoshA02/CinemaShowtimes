@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { Showing, grabShowings } from './utils.js';
+import { Showing, grabShowings, logWithTimestamp } from './utils.js';
 import {generateSessionId, validSession} from './sessions.js';
 import assert from 'assert';
 
@@ -43,21 +43,29 @@ app.get('/showtimes', async (req, res) => {
 
   // If the cached fetch is younger than the max fetch age, return it.
   if(lastFetchTime + MAX_FETCH_AGE > Date.now()) {
-    console.log('Returning cached fetch.');
+    console.log();
+    logWithTimestamp('Returning cached data.');
     return res.json({data: lastFetch, timeFetched: lastFetchTime});
   }
 
   // If the cached fetch is older than the max fetch age, fetch new data.
   isFetching = true;
-  console.log('Fetching new showtimes.');
+  console.log();
+  logWithTimestamp('Fetching new data.');
+  const startFetchTime = Date.now();
 
   grabShowings().then(showings => {
+
+    if(showings == undefined) {
+      logWithTimestamp('Trying again soon.');
+      return res.status(500).json({ error: 'An error occurred while fetching showtimes.' });
+    }
+
     lastFetch = showings;
     lastFetchTime = Date.now();
+    logWithTimestamp(`Updated showtimes cache; took ${(Date.now() - startFetchTime) / 1000}s`);
+    logWithTimestamp('Returning new data.');
     return res.json({data: showings, timeFetched: lastFetchTime});
-  }).catch(error => {
-    console.error(error);
-    res.status(500).json({ error: 'An error occurred while fetching showtimes.' });
   }).finally(() => {
     isFetching = false;
   });
@@ -77,5 +85,5 @@ app.get('/authenticate', async (req, res) => {
 });
 
 app.listen(process.env.EXPRESS_PORT, () => {
-  console.log('Server listening on port ' + process.env.EXPRESS_PORT);
+  logWithTimestamp('Server listening on port ' + process.env.EXPRESS_PORT);
 });
