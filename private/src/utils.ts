@@ -4,6 +4,7 @@ export type Movie = {
   id: string;
   title: string;
   certificate: string;
+  runtime: number;
 };
 
 export type Showing = {
@@ -15,8 +16,8 @@ export type Showing = {
   seatsTotal: number;
 };
 
-let websiteID: string;
-let circuitID: string;
+let schedule: any = {};
+let showings: Showing[] = [];
 
 
 /**
@@ -25,60 +26,54 @@ let circuitID: string;
  *         If an error occurred, an empty array is returned.
  */
 async function fetchMovies(): Promise<Movie[]> {
-  assert(process.env.QUERY_API_URL, 'QUERY_API_URL not set');
-  assert(process.env.QUERY_HASH_URL, 'QUERY_HASH_URL not set');
-  assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
-  assert(process.env.CINEMA_WEBSITE_URL, 'CINEMA_WEBSITE_URL not set');
-  assert(process.env.CINEMA_QUERY_ID_REGEX, 'CINEMA_QUERY_ID_REGEX not set');
-  
+  assert(process.env.MOVIES_API, 'MOVIES_API not set');
 
-  // Grab the URL for the page-data.json file from the cinema's website.
-  const websiteResponse = await fetch(process.env.CINEMA_WEBSITE_URL);
-  const websiteData = await websiteResponse.text();
-
-  const regex = process.env.CINEMA_QUERY_ID_REGEX;
-  const match = websiteData.match(regex);
-
-  if (!match || !match[1]) return [];
-
-  const response = await fetch(process.env.QUERY_API_URL.replace("{QUERY_ID}", match[1]).replace("{CINEMA_ID}", process.env.CINEMA_ID.toLowerCase()));
-  const data = await response.json();
-  
-  // Don't crash if the API doesn't return the expected data; handle gracefully.
-  if(!data?.result) return [];
-  if(!data.result?.pageContext?.websiteId) return [];
-  if(!data.result?.pageContext?.circuitId) return [];
-  if(!data?.staticQueryHashes) return [];
-
-  // Set the website and circuit IDs for later use.
-  websiteID = data.result.pageContext.websiteId;
-  circuitID = data.result.pageContext.circuitId;
-
-  // Find the query hash for the movie data.
-  let movieData = null;
-
-  // Loop through all the hashes to find the endpoint that corresponds to the movie data
-  for (const hash of data.staticQueryHashes) {
-    const queryResponse = await fetch(process.env.QUERY_HASH_URL.replace("{QUERY_HASH}", hash).replace("{QUERY_ID}", match[1]));
-    const queryData = await queryResponse.json();
-    if(queryData?.data?.allMovie?.nodes){
-      // Found query hash for movie data
-      movieData = queryData.data.allMovie.nodes;
-      break;
-    }
+  // Fetch all the IDs of movies in the cinema's schedule
+  const movieIDs: string[] = [];
+  for(const movieID in schedule) {
+    if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Skip this movie if there aren't any showings today
+    movieIDs.push(movieID);
   }
 
-  if(!movieData) return [];
-
-  // Exclude movies not showing at the chosen cinema.
-  movieData = movieData.filter((movie: any) => {
-    return movie.theaters.filter((theater: any) => theater.th === process.env.CINEMA_ID?.toUpperCase()).length > 0;
+  // Fetch movie data from the movies API
+  let movie_api_url = `${process.env.MOVIES_API}?`;
+  movieIDs.forEach((id, index) => {
+    if(index > 0) movie_api_url += '&';
+    movie_api_url += `ids=${id}`;
+  });
+  const response = await fetch(movie_api_url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
   });
 
-  // Cast the data to the expected format.
+  // Iterate through data and push to movies list
+  const movieData = await response.json();
   return movieData.map((movie: any) => {
-    return { id: movie.id, title: movie.title, certificate: movie.certificate };
+    return { id: movie.id, title: movie.title, certificate: movie.certificate, runtime: movie.runtime };
   });
+}
+
+async function fetchSchedule(): Promise<void> {
+  assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
+  assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
+
+  const response = await fetch(process.env.SCHEDULE_API,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        from: new Date(new Date().setHours(0, 0, 0)).toISOString(),
+        nin: [], sin: [],
+        theaters: [{id: process.env.CINEMA_ID.toUpperCase(), timeZone: "Europe/London"}],
+        to: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString()
+      })
+    },
+  );
+  const data = await response.json();
+
+  // Don't crash if the API doesn't return the expected data; handle gracefully.
+  if(!data || !data[process.env.CINEMA_ID.toUpperCase()]?.schedule) return;
+
+  schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
 }
 
 /**
@@ -89,46 +84,29 @@ async function fetchMovies(): Promise<Movie[]> {
 async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
-  assert(circuitID, 'Circuit ID not set. Did you forget to call fetchMovies()?');
-  assert(websiteID, 'Website ID not set. Did you forget to call fetchMovies()?');
 
-  const showings: Showing[] = [];
+  await Promise.all(movies.map((movie: Movie) => processMovie(movie)));
 
-  const response = await fetch(process.env.SCHEDULE_API,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        circuit: circuitID,
-        from: new Date(new Date().setHours(0, 0, 0)).toISOString(),
-        movieIds: movies.map(movie => movie.id),
-        nin: [], sin: [],
-        theaters: [{id: process.env.CINEMA_ID.toUpperCase(), timeZone: "Europe/London"}],
-        to: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(),
-        websiteId: websiteID
-      })
-    },
-  );
-  const data = await response.json();
-
-  // Don't crash if the API doesn't return the expected data; handle gracefully.
-  if(!data) return [];
-  if(!data[process.env.CINEMA_ID.toUpperCase()]?.schedule) return [];
-
-  const schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
-  
-  // Currently, this works movie by movie. This could be improved by fetching all showings for all movies in parallel.
-  for(const movieID in schedule) {
-    const movie = movies.find(movie => movie.id === movieID) || null;
-    if(!movie) continue; // Only include movies that are in the list of movies.
-    if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Only include showings for today.
-    const todaysShowings = schedule[movieID][new Date().toISOString().split('T')[0]];
-
-    const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing, movie));
-    const updatedShowings: Showing[] = await Promise.all(detailPromises);
-    showings.push(...updatedShowings.filter(showing => showing.movie.id === movieID));
-  }
+  showings.sort((a, b) => {
+    if(a.movie.title > b.movie.title) return 1;
+    if(a.movie.title < b.movie.title) return -1;
+    return 0;
+  });
+  showings.sort((a, b) => {
+    if(a.time > b.time) return 1;
+    if(a.time < b.time) return -1;
+    return 0;
+  });
 
   return showings;
+}
+
+async function processMovie(movie: Movie) {
+  const todaysShowings = schedule[movie.id][new Date().toISOString().split('T')[0]];
+
+  const detailPromises = todaysShowings.map( (showing: string) => populateShowingDetails(showing, movie));
+  const updatedShowings: Showing[] = await Promise.all(detailPromises);
+  showings.push(...updatedShowings.filter(showing => showing.movie.id === movie.id));
 }
 
 
@@ -140,7 +118,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
  */
 async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
   let showing: Showing = {
-    movie: { id: '', title: '', certificate: '' },
+    movie: { id: '', title: '', certificate: '', runtime: 0 },
     time: new Date(),
     runtime: 0,
     screen: 0,
@@ -188,7 +166,7 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   showing = {
     movie,
     time: showingTime,
-    runtime: 0,
+    runtime: movie.runtime,
     screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
     seatsOccupied: occupiedSeats,
     seatsTotal: totalSeats
@@ -205,12 +183,18 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
  */
 export async function grabShowings(): Promise<Showing[]> {
 
-  if(!process.env.QUERY_API_URL || !process.env.QUERY_HASH_URL || !process.env.CINEMA_ID || !process.env.SCHEDULE_API || !process.env.CINEMA_WEBSITE_URL || !process.env.CINEMA_QUERY_ID_REGEX) {
+  if(!process.env.CINEMA_ID || !process.env.SCHEDULE_API) {
     console.error('One or more required environment variables are not set.\n' +
-    'Required variables: QUERY_API_URL, QUERY_HASH_URL, CINEMA_ID, SCHEDULE_API, CINEMA_WEBSITE_URL, CINEMA_QUERY_ID_REGEX' +
+    'Required variables: CINEMA_ID, SCHEDULE_API' +
     '\nNo data will be returned.');
     return [];
   }
+
+  // clear values
+  schedule = {};
+  showings = [];
+
+  await fetchSchedule();
 
   try{
     return await fetchShowings(await fetchMovies());
