@@ -1,4 +1,5 @@
 import assert from 'assert';
+import pLimit from 'p-limit';
 
 export type Movie = {
   id: string;
@@ -107,33 +108,40 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
 
-  // logWithTimestamp("Fetching showings...");
+  logWithTimestamp("Fetching showings...");
 
-  const tasks: (() => Promise<Showing | null>)[] = [];
-  const batchSize = process.env.BOOKING_BATCH_SIZE ? parseInt(process.env.BOOKING_BATCH_SIZE) || 15 : 15;
+  const concurrency = process.env.BOOKING_CONCURRENCY_LIMIT
+    ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15
+    : 15;
 
-  for(const movieID in schedule) {
-    const movie = movies.find((movie) => movie.id == movieID);
-    if(!movie) {
+  const limit = pLimit(concurrency);
+  const tasks: Promise<Showing | null>[] = [];
+
+  for (const movieID in schedule) {
+    const movie = movies.find((movie) => movie.id === movieID);
+    if (!movie) {
       logWithTimestamp(`Movie of ID ${movieID} could not be found in movie list; skipping.`);
       continue;
     }
 
-    for(const date in schedule[movieID]) {
-      for(const showing of schedule[movieID][date]) {
-        tasks.push(() => populateShowingDetails(showing, movie).catch(e => { console.error(e); return null; }));
+    for (const date in schedule[movieID]) {
+      for (const showing of schedule[movieID][date]) {
+        tasks.push(
+          limit(() =>
+            populateShowingDetails(showing, movie).catch((e) => {
+              console.error(e);
+              return null;
+            })
+          )
+        );
       }
     }
   }
 
-  const results: (Showing | null)[] = [];
-  while (tasks.length > 0) {
-    const batch = tasks.splice(0, batchSize).map(fn => fn());
-    const settledBatch = await Promise.all(batch);
-    results.push(...settledBatch);
-  }
-
+  const results = await Promise.all(tasks);
   const showings = results.filter(Boolean) as Showing[];
+
+  logWithTimestamp("Sorting schedule...");
   showings.sort((a, b) => {
     const t = a.movie.title.localeCompare(b.movie.title);
     if (t !== 0) return t;
@@ -163,7 +171,7 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   const frontendBookingURL = showingJson?.data?.ticketing[0]?.urls[0] || null;
   if(!frontendBookingURL) return showing;
 
-  logWithTimestamp("Starting booking...");
+  // logWithTimestamp("Starting booking...");
   const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
   const bookingResponse = await fetch(backendBookingURL, {
     method: 'POST',
@@ -180,16 +188,9 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   if(!seatsLayoutModel) return showing;
 
   // Get the total number of seats in the screen
-  const rows = seatsLayoutModel.rows;
-  let totalSeats = 0;
-  let occupiedSeats = 0;
-  for(const row of rows) {
-    for(const seat of row.seats) {
-      if(!seat?.id) continue;
-      totalSeats++;
-      if(seat?.status !== 0) occupiedSeats++;
-    }
-  }
+  const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
+  const totalSeats = seats.length;
+  const occupiedSeats = seats.filter((s: {status: any}) => s.status !== 0).length;
 
   showing = {
     movie,
