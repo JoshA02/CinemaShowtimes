@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {logWithTimestamp} from './utils.js';
 
 const SESSION_LIMIT = 500;
 
@@ -27,6 +28,8 @@ export function generateSessionId(): string {
 
   // Add the new session
   sessions.push({sessionId, expiry});
+
+  logWithTimestamp(`Created new session (${sessionId}) set to expire at ${expiry.toLocaleString()}`)
 
   return sessionId;
 }

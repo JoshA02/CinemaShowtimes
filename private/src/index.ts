@@ -43,8 +43,8 @@ app.get('/showtimes', async (req, res) => {
 
   // If the cached fetch is younger than the max fetch age, return it.
   if(lastFetchTime + MAX_FETCH_AGE > Date.now()) {
-    console.log();
-    logWithTimestamp('Returning cached data.');
+    // console.log();
+    // logWithTimestamp('Returning cached data.');
     return res.json({data: lastFetch, timeFetched: lastFetchTime});
   }
 
