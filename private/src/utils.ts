@@ -107,7 +107,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
 
-  logWithTimestamp("Fetching showings...");
+  // logWithTimestamp("Fetching showings...");
 
   const tasks: (() => Promise<Showing | null>)[] = [];
   const batchSize = process.env.BOOKING_BATCH_SIZE ? parseInt(process.env.BOOKING_BATCH_SIZE) || 15 : 15;
