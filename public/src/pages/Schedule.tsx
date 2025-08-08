@@ -127,7 +127,7 @@ function Schedule() {
           <AttendanceListItem 
             start={startTime.current}
             end={nextHour.current}
-            attendance={GetAttendanceBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60))}
+            attendance={GetAttendanceBetween(startTime.current, nextHour.current)}
           />
 
           {/* The remaining hours of today */}
