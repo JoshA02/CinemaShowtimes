@@ -24,10 +24,13 @@ let schedule: any = {};
  * @returns An array of Movie objects, representing all movies listed for the cinema (I believe this also includes movies that are not currently showing).
  *         If an error occurred, an empty array is returned.
  */
-async function fetchMovies(): Promise<Movie[]> {
+async function fetchMovies(): Promise<Map<string, Movie>> {
   assert(process.env.MOVIES_API, 'MOVIES_API not set');
 
-  logWithTimestamp("Fetching movies...");
+  const startTime = new Date();
+  
+  console.log();
+  logWithTimestamp("2) Fetching movies...");
 
   // Fetch all the IDs of movies in the cinema's schedule
   const movieIDs: string[] = [];
@@ -37,11 +40,9 @@ async function fetchMovies(): Promise<Movie[]> {
   }
 
   // Fetch movie data from the movies API
-  let movie_api_url = `${process.env.MOVIES_API}?`;
-  movieIDs.forEach((id, index) => {
-    if(index > 0) movie_api_url += '&';
-    movie_api_url += `ids=${id}`;
-  });
+  const params = new URLSearchParams();
+  movieIDs.forEach(id => params.append('ids', id));
+  const movie_api_url = `${process.env.MOVIES_API}?${params.toString()}`;
 
   try {
     const response = await fetch(movie_api_url, {
@@ -49,13 +50,21 @@ async function fetchMovies(): Promise<Movie[]> {
       headers: { 'Content-Type': 'application/json' },
     });
 
-    // Iterate through data and push to movies list
+    // Iterate through data and create movies map (keyed by movie ID)
     const movieData = await response.json();
-    return movieData.map((movie: any) => {
-      return { id: movie.id, title: movie.title, certificate: movie.certificate, runtime: movie.runtime };
+    const moviesMap = new Map<string, Movie>();
+    movieData.forEach((movie: any) => {
+      moviesMap.set(movie.id, {
+        id: movie.id,
+        title: movie.title,
+        certificate: movie.certificate,
+        runtime: movie.runtime
+      });
     });
+    logWithTimestamp(`Fetched ${moviesMap.size} movies in ${secsSince(startTime)} seconds.`);
+    return moviesMap;
   } catch {
-    return [];
+    return new Map();
   }
 }
 
@@ -66,7 +75,9 @@ async function fetchSchedule() {
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
 
-  logWithTimestamp("Fetching schedule...");
+  const startTime = new Date();
+  console.log();
+  logWithTimestamp("1) Fetching schedule...");
 
   const todayMidnight = new Date(new Date().setUTCHours(0, 0, 0, 0));
   const endDateMidnight = new Date(new Date(todayMidnight).setDate(todayMidnight.getDate() + 2));
@@ -77,7 +88,6 @@ async function fetchSchedule() {
     theaters: [{id: process.env.CINEMA_ID.toUpperCase(), timeZone: "Europe/London"}],
     to: endDateMidnight.toISOString()
   });
-  // console.log(requestBody);
 
   try {
     const response = await fetch(process.env.SCHEDULE_API,
@@ -93,6 +103,8 @@ async function fetchSchedule() {
 
     schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
 
+    logWithTimestamp(`Fetched schedule for ${process.env.CINEMA_ID.toUpperCase()} (${Object.keys(schedule).length} movies) in ${secsSince(startTime)} seconds.`);
+
   } catch {
     logWithTimestamp(`Could not parse json from schedule API; returning...`);
     return;
@@ -104,11 +116,14 @@ async function fetchSchedule() {
  * @param movies An array of Movie objects to fetch showings for (from fetchMovies)
  * @returns An array of Showing objects for the chosen cinema, or an empty array if an error occurred.
  */
-async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
+async function fetchShowings(movies: Map<string, Movie>): Promise<Showing[]> {
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
 
-  logWithTimestamp("Fetching showings...");
+  let startTime = new Date();
+
+  console.log();
+  logWithTimestamp("3) Fetching showings...");
 
   const concurrency = process.env.BOOKING_CONCURRENCY_LIMIT
     ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15
@@ -118,7 +133,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   const tasks: Promise<Showing | null>[] = [];
 
   for (const movieID in schedule) {
-    const movie = movies.find((movie) => movie.id === movieID);
+    const movie = movies.get(movieID);
     if (!movie) {
       logWithTimestamp(`Movie of ID ${movieID} could not be found in movie list; skipping.`);
       continue;
@@ -139,14 +154,18 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
   }
 
   const results = await Promise.all(tasks);
-  const showings = results.filter(Boolean) as Showing[];
+  const showings = results.filter(Boolean) as Showing[]; // Filter out null results
+  logWithTimestamp(`Fetched ${showings.length} showings in ${secsSince(startTime)} seconds.`);
 
-  logWithTimestamp("Sorting schedule...");
+  startTime = new Date();
+  console.log();
+  logWithTimestamp("4) Sorting showings by movie title and time...");
   showings.sort((a, b) => {
     const t = a.movie.title.localeCompare(b.movie.title);
     if (t !== 0) return t;
     return a.time.getTime() - b.time.getTime();
   });
+  logWithTimestamp(`Sorted showings in ${secsSince(startTime)} seconds.\n`);
 
   return showings;
 }
@@ -204,6 +223,9 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   return showing;
 }
 
+export function secsSince(start: Date): number {
+  return ((new Date().getTime() - start.getTime()) / 1000);
+}
 
 export function logWithTimestamp(message: string, omitNewline: boolean = false) {
   process.stdout.write(`${new Date().toLocaleTimeString()}: ${message}${omitNewline ? '' : '\n'}`);

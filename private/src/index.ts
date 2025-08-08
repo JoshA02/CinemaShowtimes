@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { Showing, grabShowings, logWithTimestamp } from './utils.js';
+import { Showing, grabShowings, logWithTimestamp, secsSince } from './utils.js';
 import {generateSessionId, validSession} from './sessions.js';
 import assert from 'assert';
 
@@ -52,7 +52,7 @@ app.get('/showtimes', async (req, res) => {
   isFetching = true;
   console.log();
   logWithTimestamp('Fetching new data.');
-  const startFetchTime = Date.now();
+  const startFetchTime = new Date();
 
   grabShowings().then(showings => {
 
@@ -63,7 +63,7 @@ app.get('/showtimes', async (req, res) => {
 
     lastFetch = showings;
     lastFetchTime = Date.now();
-    logWithTimestamp(`Updated showtimes cache; took ${(Date.now() - startFetchTime) / 1000}s`);
+    logWithTimestamp(`Updated showtimes cache in ${secsSince(startFetchTime)} seconds`);
     logWithTimestamp('Returning new data.');
     return res.json({data: showings, timeFetched: lastFetchTime});
   }).finally(() => {

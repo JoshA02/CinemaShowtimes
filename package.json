@@ -20,7 +20,7 @@
   },
   "scripts": {
     "back-build": "cd private && tsc",
-    "back-dev": "npm run back-build && nodemon --env-file=.env private/dist/index.js",
+    "back-dev": "npm run back-build && nodemon --env-file=.env --env-file=.env.development private/dist/index.js",
     "back-prod": "npm run back-build && node --env-file=.env private/dist/index.js",
     "front-build": "cd public && npx react-scripts build",
     "front-dev": "cd public && npx react-scripts start",
