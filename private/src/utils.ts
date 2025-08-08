@@ -175,23 +175,13 @@ async function fetchShowings(movies: Map<string, Movie>): Promise<Showing[]> {
  * Populates a Showing object with additional details (seating, etc) by making a temporary booking for the showing via the booking API. Used by fetchShowings.
  * @param showingJson The basic showing data from the API response
  * @param movie The movie object for the showing
- * @returns A populated Showing object, or a default object if an error occurred; the calling function (fetchShowings) will handle this gracefully.
+ * @returns A populated Showing object
+ * @throws If an unsalvageable error occurs, such as a missing booking URL or cart summary model.
  */
 async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
-
-  let showing: Showing = {
-    movie: { id: '', title: '', certificate: '', runtime: 0 },
-    time: new Date(),
-    runtime: 0,
-    screen: 0,
-    seatsOccupied: 0,
-    seatsTotal: 0
-  };
-
   const frontendBookingURL = showingJson?.data?.ticketing[0]?.urls[0] || null;
-  if(!frontendBookingURL) return showing;
+  if(!frontendBookingURL) throw Error("No booking URL found for showing");
 
-  // logWithTimestamp("Starting booking...");
   const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
   const bookingResponse = await fetchWithRetry(backendBookingURL, {
     method: 'POST',
@@ -200,26 +190,37 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   });
 
   const bookingData = await bookingResponse.json();
-  if(!bookingData) return showing;
+  if(!bookingData) throw Error("No booking data returned from booking API");
 
   const cartSummaryModel = bookingData?.cartSummaryModel || null;
   const seatsLayoutModel = bookingData.selectSeatsModel?.seatsLayoutModel || null;
-  if(!cartSummaryModel) return showing;
-  if(!seatsLayoutModel) return showing;
+  
+  // We can't salvage this showing if we don't have a cart summary model
+  if(!cartSummaryModel) throw Error("No cart summary model");
+
+  const fallbackOccupancy = showingJson?.occupancy?.rate || -1;
+  const showing: Showing = {
+    movie,
+    time: new Date(showingJson.startsAt),
+    runtime: movie.runtime,
+    screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
+    seatsOccupied: fallbackOccupancy,
+    seatsTotal: fallbackOccupancy // Frontend doesn't use this anymore
+  };
+
+  // Seats layout model has accurate data; fallback to showingJson occupancy if not available
+  if(!seatsLayoutModel) {
+    if(fallbackOccupancy < 0) throw Error(`No fallback occupancy found for ${movie.title} showing at ${showing.time.toLocaleString()}`);
+    return showing;
+  }
+    
 
   // Get the total number of seats in the screen
   const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
   const totalSeats = seats.length;
   const occupiedSeats = seats.filter((s: {status: any}) => s.status !== 0).length;
-
-  showing = {
-    movie,
-    time: new Date(showingJson.startsAt),
-    runtime: movie.runtime,
-    screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
-    seatsOccupied: occupiedSeats,
-    seatsTotal: totalSeats
-  }
+  showing.seatsOccupied = occupiedSeats;
+  showing.seatsTotal = totalSeats;
 
   return showing;
 }

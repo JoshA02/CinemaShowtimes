@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import logo from './logo.svg';
 import '../App.css';
 import {Showing} from '../types';
@@ -12,13 +12,26 @@ function Schedule() {
 
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
-  const hourRoundDown = new Date().setMinutes(0, 0, 0);
-  const hoursTillMidnight = 24 - new Date().getHours();
+  
+  // Refs to keep track of time calculations without causing re-renders //
+  const startTime = useRef(new Date(Date.now() - 1000 * 60 * 10)); // 10 minutes ago to be aware of any potential late guests  
+  const hourRoundDown = useRef(new Date().setMinutes(0, 0, 0));
+  const nextHour = useRef(new Date(hourRoundDown.current + 1000 * 60 * 60)); // The next whole hour
+  const hoursTillMidnight = useRef(24 - new Date().getHours());
+  const latestTime = useRef(new Date(new Date(Date.now() + 1000 * 60 * 60 * 24).setHours(1,0,0))); // 1am the next day
 
   // Upon loading, keep ticking the time since last update:
   useEffect(() => {
     const interval = setInterval(() => {
       setSecsSinceUpdate(secsSinceUpdate + 1);
+
+      // Update the time calculations:
+      const now = new Date();
+      startTime.current = new Date(Date.now() - 1000 * 60 * 10);
+      hourRoundDown.current = new Date(now.setMinutes(0, 0, 0)).getTime();
+      nextHour.current = new Date(hourRoundDown.current + 1000 * 60 * 60);
+      hoursTillMidnight.current = 24 - now.getHours();
+
     }, 1000);
     return () => clearInterval(interval);
   }, [secsSinceUpdate]);
@@ -43,7 +56,7 @@ function Schedule() {
         if(!tempShowings) return;
         tempShowings = tempShowings.filter(showing => {
           const showingTime = new Date(showing.time);
-          return showingTime > new Date() && showingTime.getDate() === new Date().getDate()
+          return showingTime > startTime.current && showingTime < latestTime.current;
         });
         tempShowings = tempShowings.sort((a, b) => a.time > b.time ? 1 : -1);
         setShowings(tempShowings);
@@ -108,15 +121,30 @@ function Schedule() {
       )}
 
       {mode === 'attendance' && (
-        <div>
-          {/* One hour from this exact time */}
-          <AttendanceListItem start={new Date()} end={new Date(Date.now() + 1000 * 60 * 60)} attendance={GetAttendanceBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60))} />
+        <div>          
+          {/* One hour from this exact time, rounding end to closest hour */}
+          <AttendanceListItem 
+            start={startTime.current}
+            end={nextHour.current}
+            attendance={GetAttendanceBetween(new Date(), new Date(Date.now() + 1000 * 60 * 60))}
+          />
+
+          {/* The remaining hours of today */}
           {
-            // Create an attendance list item for each hour in the future, including the current hour
-            Array.from({length: hoursTillMidnight}, (_, i) => i).map((_, i) => (
-              <AttendanceListItem start={new Date(hourRoundDown + 1000 * 60 * 60 * (i))} end={new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1))} attendance={GetAttendanceBetween(new Date(hourRoundDown + 1000 * 60 * 60 * (i)), new Date(hourRoundDown + 1000 * 60 * 60 * (i + 1)))} key={i} />
-            ))
+            // Create an attendance list item for each hour in the future, excluding the current hour
+            Array.from({length: hoursTillMidnight.current}, (_, i) => {
+              const start = new Date(hourRoundDown.current + (i + 1) * 1000 * 60 * 60);
+              const end = new Date(start.getTime() + 1000 * 60 * 60);
+              return (
+                <AttendanceListItem 
+                  key={i} 
+                  start={start} 
+                  end={end} 
+                  attendance={GetAttendanceBetween(start, end)} />
+              );
+            })
           }
+
         </div>
       )}
     </div>
