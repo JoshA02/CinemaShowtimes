@@ -1,8 +1,9 @@
-import React, {useEffect, useState} from 'react';
+import {useEffect, useState} from 'react';
 import Schedule from './pages/Schedule';
 import Login from './pages/Login';
 
-export const BUSY_THRESHOLD = 25;
+export const BUSY_THRESHOLD = 25; // Number of occupied seats to consider a showing busy
+export const FAR_AHEAD_THRESHOLD = 1000 * 60 * 15; // Time in milliseconds to consider a showing not imminent (15 minutes)
 
 export default function App() {
   

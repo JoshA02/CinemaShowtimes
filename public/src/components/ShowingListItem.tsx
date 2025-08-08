@@ -1,10 +1,7 @@
-import React from 'react'
 import {Showing} from '../types'
 import '../App.css'
 import './ShowingListItem.css'
-import {BUSY_THRESHOLD} from '../App';
-
-const FAR_AHEAD_THRESHOLD = 1000 * 60 * 30; // 30 minutes in milliseconds
+import {BUSY_THRESHOLD, FAR_AHEAD_THRESHOLD} from '../App';
 
 export default function ShowingListItem({showing}: {showing: Showing}) {
   const showTime = new Date(showing.time);
@@ -23,7 +20,7 @@ export default function ShowingListItem({showing}: {showing: Showing}) {
         </span>
       </div>
       <div className="right">
-        <span className={`attendance ${isBusy ? 'bold' : ''}`}>{showing.seatsOccupied}</span>
+        <span className={`attendance ${isBusy ? 'bold' : ''}`}>{`${(showing.unreliable ? '~' : '')}${showing.seatsOccupied}`}</span>
       </div>
     </div>
   )

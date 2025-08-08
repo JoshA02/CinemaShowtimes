@@ -11,4 +11,5 @@ export type Showing = {
   screen: number;
   seatsOccupied: number;
   seatsTotal: number;
+  unreliable?: boolean; // Indicates if the showing data is unreliable
 };

@@ -16,6 +16,7 @@ export type Showing = {
   screen: number;
   seatsOccupied: number;
   seatsTotal: number;
+  unreliable?: boolean; // If true, the showing data may not be accurate (e.g. if the API didn't return a seats layout model)
 };
 
 let schedule: any = {};
@@ -204,23 +205,27 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
     time: new Date(showingJson.startsAt),
     runtime: movie.runtime,
     screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
-    seatsOccupied: fallbackOccupancy,
-    seatsTotal: fallbackOccupancy // Frontend doesn't use this anymore
+    seatsOccupied: 0,
+    seatsTotal: 0
   };
 
-  // Seats layout model has accurate data; fallback to showingJson occupancy if not available
-  if(!seatsLayoutModel) {
-    if(fallbackOccupancy < 0) throw Error(`No fallback occupancy found for ${movie.title} showing at ${showing.time.toLocaleString()}`);
-    return showing;
-  }
-    
-
   // Get the total number of seats in the screen
-  const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
-  const totalSeats = seats.length;
-  const occupiedSeats = seats.filter((s: {status: any}) => s.status !== 0).length;
-  showing.seatsOccupied = occupiedSeats;
-  showing.seatsTotal = totalSeats;
+  try {
+    const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
+    const totalSeats = seats.length;
+    const occupiedSeats = seats.filter((s: {status: any}) => s.status !== 0).length;
+    showing.seatsOccupied = occupiedSeats;
+    showing.seatsTotal = totalSeats;
+  }
+  // Seats layout model has accurate data; fallback to showingJson occupancy if not available
+  catch {
+    if(fallbackOccupancy < 0) throw Error(`No fallback occupancy found for ${movie.title} showing at ${showing.time.toLocaleString()}`);
+    
+    // Use fallback occupancy if we can't parse the seats layout model
+    showing.unreliable = true; // Mark as unreliable if we had to use fallback occupancy
+    showing.seatsOccupied = fallbackOccupancy;
+    showing.seatsTotal = fallbackOccupancy; // Frontend doesn't use this anymore
+  }
 
   return showing;
 }

@@ -121,7 +121,8 @@ function Schedule() {
       )}
 
       {mode === 'attendance' && (
-        <div>          
+        <div>
+
           {/* One hour from this exact time, rounding end to closest hour */}
           <AttendanceListItem 
             start={startTime.current}
