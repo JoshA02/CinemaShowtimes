@@ -109,8 +109,8 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
 
   logWithTimestamp("Fetching showings...");
 
-  const promises: Promise<void>[] = [];
-  const showings: Showing[] = [];
+  const tasks: (() => Promise<Showing | null>)[] = [];
+  const batchSize = process.env.BOOKING_BATCH_SIZE ? parseInt(process.env.BOOKING_BATCH_SIZE) || 15 : 15;
 
   for(const movieID in schedule) {
     const movie = movies.find((movie) => movie.id == movieID);
@@ -121,26 +121,23 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
 
     for(const date in schedule[movieID]) {
       for(const showing of schedule[movieID][date]) {
-        promises.push(new Promise(async (resolve, _rej) => {
-          // console.log(`Showing for ${movie.title} @ ${showing.startsAt} - id: ${showing.id}`);
-          showings.push(await populateShowingDetails(showing, movie));
-          resolve();
-        }));
+        tasks.push(() => populateShowingDetails(showing, movie).catch(e => { console.error(e); return null; }));
       }
     }
   }
 
-  await Promise.all(promises);
+  const results: (Showing | null)[] = [];
+  while (tasks.length > 0) {
+    const batch = tasks.splice(0, batchSize).map(fn => fn());
+    const settledBatch = await Promise.all(batch);
+    results.push(...settledBatch);
+  }
 
+  const showings = results.filter(Boolean) as Showing[];
   showings.sort((a, b) => {
-    if(a.movie.title > b.movie.title) return 1;
-    if(a.movie.title < b.movie.title) return -1;
-    return 0;
-  });
-  showings.sort((a, b) => {
-    if(a.time > b.time) return 1;
-    if(a.time < b.time) return -1;
-    return 0;
+    const t = a.movie.title.localeCompare(b.movie.title);
+    if (t !== 0) return t;
+    return a.time.getTime() - b.time.getTime();
   });
 
   return showings;
@@ -153,6 +150,7 @@ async function fetchShowings(movies: Movie[]): Promise<Showing[]> {
  * @returns A populated Showing object, or a default object if an error occurred; the calling function (fetchShowings) will handle this gracefully.
  */
 async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
+
   let showing: Showing = {
     movie: { id: '', title: '', certificate: '', runtime: 0 },
     time: new Date(),
@@ -165,6 +163,7 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   const frontendBookingURL = showingJson?.data?.ticketing[0]?.urls[0] || null;
   if(!frontendBookingURL) return showing;
 
+  logWithTimestamp("Starting booking...");
   const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
   const bookingResponse = await fetch(backendBookingURL, {
     method: 'POST',
