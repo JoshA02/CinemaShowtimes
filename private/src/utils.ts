@@ -1,5 +1,6 @@
 import assert from 'assert';
 import pLimit from 'p-limit';
+import {Agent} from 'undici';
 
 export type Movie = {
   id: string;
@@ -192,7 +193,7 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
 
   // logWithTimestamp("Starting booking...");
   const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
-  const bookingResponse = await fetch(backendBookingURL, {
+  const bookingResponse = await fetchWithRetry(backendBookingURL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({"selectedLanguageCulture": null})
@@ -223,6 +224,36 @@ async function populateShowingDetails(showingJson: any, movie: Movie): Promise<S
   return showing;
 }
 
+const keepAliveAgent = new Agent({
+  keepAliveTimeout: 12000,
+  connections: process.env.BOOKING_CONCURRENCY_LIMIT ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15 : 15,
+});
+
+/**
+ * Fetches a URL with retry logic, using the keep-alive agent.
+ * @param url The URL to fetch
+ * @param options The options to pass to the fetch function
+ * @param retries The number of times to retry the fetch if it fails (default: 3)
+ * @returns A Promise that resolves to the Response object from the fetch call
+ */
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3): Promise<Response> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fetch(url, { ...(options as any), dispatcher: keepAliveAgent });
+    } catch (e) {
+      if (attempt === retries) throw e;
+      console.warn(`Attempt ${attempt} failed for ${url}. Retrying...`);
+      await new Promise(res => setTimeout(res, 200 * attempt));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
+/**
+ * Calculates the number of seconds since a given start date.
+ * @param start The start date to calculate the seconds since
+ * @returns The number of seconds since the start date (decimal)
+ */
 export function secsSince(start: Date): number {
   return ((new Date().getTime() - start.getTime()) / 1000);
 }
