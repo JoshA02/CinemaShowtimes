@@ -29,6 +29,47 @@ let isFetching = false; // Prevents multiple fetches at once.
 let lastFetch: {schedule: Showing[], movies: {[movieId: string]: Movie}} = {schedule: [], movies: {} }; // Cache the last fetch to prevent multiple fetches in a short time.
 let lastFetchTime = 0; // Time of the last fetch in milliseconds.
 
+async function initialFetch() {
+  logWithTimestamp('Populating initial cache...');
+  try {
+    const showings = await grabShowings();
+    if(showings == undefined) throw new Error('Schedule undefined: ');
+    lastFetch = showings;
+    lastFetchTime = Date.now();
+    logWithTimestamp('Initial cache populated.');
+  } catch (err) {
+    console.error('Error during initial fetch:', err);
+  }
+}
+
+function watchForMidnight() {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+  const timeUntilMidnight = midnight.getTime() - now.getTime();
+  const offset = 1000; // Offset to ensure the cache is cleared just after midnight
+
+  logWithTimestamp(`Watching for midnight. Time until midnight: ${timeUntilMidnight/1000}s`);
+
+  setTimeout(() => {
+    console.log('Midnight reached, refreshing cache...');
+    isFetching = true; // Prevent any other fetches while refreshing the cache
+
+    grabShowings().then(schedule => {
+      if(schedule == undefined) throw new Error('Schedule undefined: ');
+
+      lastFetch = schedule;
+      lastFetchTime = Date.now();
+      logWithTimestamp('Cache cleared and updated at midnight.');
+    }).catch(err => {
+      console.error('Error during midnight cache refresh:', err);
+    }).finally(() => {
+      isFetching = false; // Allow fetches again
+    });
+
+    watchForMidnight(); // Set up the next midnight watcher
+  }, timeUntilMidnight + offset);
+}
+
 app.get('/showtimes', async (req, res) => {
 
   // Validate the session
@@ -84,6 +125,13 @@ app.get('/authenticate', async (req, res) => {
   res.send({sessionId}); // Send the generated session id back to the client; they'll use this to make requests.
 });
 
+
+// Initial fetch to populate the cache
+await initialFetch();
+
 app.listen(process.env.EXPRESS_PORT, () => {
   logWithTimestamp('Server listening on port ' + process.env.EXPRESS_PORT);
 });
+
+// Start watching for midnight to refresh the cache
+watchForMidnight();
