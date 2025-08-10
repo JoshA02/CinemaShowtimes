@@ -3,77 +3,85 @@ import pLimit from 'p-limit';
 import {Agent} from 'undici';
 
 export type Movie = {
-  id: string;
   title: string;
   certificate: string;
   runtime: number;
 };
 
 export type Showing = {
-  movie: Movie;
-  time: Date;
-  runtime: number;
-  screen: number;
-  seatsOccupied: number;
-  seatsTotal: number;
-  unreliable?: boolean; // If true, the showing data may not be accurate (e.g. if the API didn't return a seats layout model)
+  movieId: string;
+  startsAt: Date;
+  screenNumber: number;
+  guests: number;
 };
 
-let schedule: any = {};
+interface ShowingPrivate extends Showing {
+  id: string;
+  bookingUrl: string;
+  occupancyRate: number; // Percentage of seats occupied
+};
+
+let schedule: ShowingPrivate[] = [];
+let movies: Map<string, Movie> = new Map();
+let screenCapacityCache: Map<number, number> = new Map(); // Screen number -> capacity
+let showingScreenCache: Map<string, number> = new Map(); // Showing ID -> screen number
+let lastScheduleStart: Date | null = null; // The 'from' time of the last schedule fetch
+
+const keepAliveAgent = new Agent({
+  keepAliveTimeout: 12000,
+  connections: process.env.BOOKING_CONCURRENCY_LIMIT ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15 : 15,
+});
+
 
 /**
- * Fetches all movies showing at the cinema, utilising the movie API.
- * @returns An array of Movie objects, representing all movies listed for the cinema (I believe this also includes movies that are not currently showing).
- *         If an error occurred, an empty array is returned.
+ * Fetches all movies showing at the cinema, and then fetches all showings for those movies.
+ * @returns An array of Showings for the cinema, or undefined if an error occurred.
  */
-async function fetchMovies(): Promise<Map<string, Movie>> {
-  assert(process.env.MOVIES_API, 'MOVIES_API not set');
+export async function grabShowings(): Promise<{
+  schedule: Showing[],
+  movies: {[movieId: string]: Movie}
+} | undefined> {
 
-  const startTime = new Date();
+  if(!process.env.CINEMA_ID || !process.env.SCHEDULE_API || !process.env.MOVIES_API) {
+    console.error('One or more required environment variables are not set.\n' +
+    'Required variables: CINEMA_ID, SCHEDULE_API, MOVIES_API' +
+    '\nNo data will be returned.');
+    return {schedule: [], movies: {}};
+  }
+
+  // clear values
+  schedule = [];
+  movies.clear();
+
+  await populateSchedule();
+  await populateMovies();
+
+  await populateScheduleDetails();
   
+  if(schedule.length === 0) {
+    console.warn("No showings found in the schedule. Returning no data.");
+    return {schedule: [], movies: {}};
+  }
+
   console.log();
-  logWithTimestamp("2) Fetching movies...");
+  logWithTimestamp('4) Formatting showings...');
 
-  // Fetch all the IDs of movies in the cinema's schedule
-  const movieIDs: string[] = [];
-  for(const movieID in schedule) {
-    // if(!schedule[movieID][new Date().toISOString().split('T')[0]]) continue; // Skip this movie if there aren't any showings today
-    movieIDs.push(movieID);
-  }
+  return {
+    schedule: schedule.map((showing) => ({
+                movieId: showing.movieId,
+                startsAt: new Date(showing.startsAt),
+                screenNumber: showing.screenNumber,
+                guests: showing.guests
+    })),
+    movies: Object.fromEntries(movies.entries())
+  };
 
-  // Fetch movie data from the movies API
-  const params = new URLSearchParams();
-  movieIDs.forEach(id => params.append('ids', id));
-  const movie_api_url = `${process.env.MOVIES_API}?${params.toString()}`;
-
-  try {
-    const response = await fetch(movie_api_url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    // Iterate through data and create movies map (keyed by movie ID)
-    const movieData = await response.json();
-    const moviesMap = new Map<string, Movie>();
-    movieData.forEach((movie: any) => {
-      moviesMap.set(movie.id, {
-        id: movie.id,
-        title: movie.title,
-        certificate: movie.certificate,
-        runtime: movie.runtime
-      });
-    });
-    logWithTimestamp(`Fetched ${moviesMap.size} movies in ${secsSince(startTime)} seconds.`);
-    return moviesMap;
-  } catch {
-    return new Map();
-  }
 }
 
 /**
  * Populates the schedule object with info from the cinema's schedule API
  */
-async function fetchSchedule() {
+async function populateSchedule() {
   assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
   assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
 
@@ -92,148 +100,232 @@ async function fetchSchedule() {
   });
 
   try {
-    const response = await fetch(process.env.SCHEDULE_API,
-      {
-        method: 'POST',
-        body: requestBody
-      },
-    );
+    const response = await fetch(process.env.SCHEDULE_API, {method: 'POST', body: requestBody});
     const data = await response.json();
 
     // Don't crash if the API doesn't return the expected data; handle gracefully.
     if(!data || !data[process.env.CINEMA_ID.toUpperCase()]?.schedule) return;
 
-    schedule = data[process.env.CINEMA_ID.toUpperCase()].schedule;
+    // Clear caches if this is the first time fetching today's schedule
+    if(lastScheduleStart && Math.abs(lastScheduleStart.getTime() - todayMidnight.getTime()) > 1000) {
+      logWithTimestamp("Fetching today's schedule for the first time; this may take a while...");
+      logWithTimestamp("Invalidating caches for screen capacities and showing screens.");
+      screenCapacityCache.clear(); // Clear the screen capacity cache
+      showingScreenCache.clear(); // Clear the showing screen cache      
+    }
+    lastScheduleStart = todayMidnight; // Update the last schedule start time
+
+    const scheduleJson = data[process.env.CINEMA_ID.toUpperCase()].schedule;
+    const showings: ShowingPrivate[] = [];
+
+    for (const movieId in scheduleJson) {
+      const movieDates = scheduleJson[movieId];
+      for (const date in movieDates) {
+        for (const showing of movieDates[date]) {
+          const frontendBookingURL = showing.data.ticketing[0]?.urls[0];
+          if(!frontendBookingURL) {
+            logWithTimestamp(`No booking URL found for showing ${showing.id} of movie ${movieId} @ ${showing.startsAt}. Skipping...`);
+            continue; // Skip this showing if no booking URL is found
+          }
+
+          if(!showing.occupancy || typeof showing.occupancy.rate !== 'number') { // Allow occupancy rate to be 0
+            logWithTimestamp(`No occupancy rate found for showing ${showing.id} of movie ${movieId} @ ${showing.startsAt}. Skipping...`);
+            continue;
+          }
+          
+          showings.push({
+            id: showing.id,
+            startsAt: showing.startsAt,
+            bookingUrl: frontendBookingURL.replace('/startticketing', '/api/StartTicketing'),
+            occupancyRate: showing.occupancy.rate,
+            movieId: movieId,
+            screenNumber: 0, // Populated later
+            guests: 0 // Populated later
+          });
+        }
+      }
+    }
+
+    // Sort by start time descending
+    schedule = showings.sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
 
     logWithTimestamp(`Fetched schedule for ${process.env.CINEMA_ID.toUpperCase()} (${Object.keys(schedule).length} movies) in ${secsSince(startTime)} seconds.`);
-
   } catch {
     logWithTimestamp(`Could not parse json from schedule API; returning...`);
     return;
   }
 }
 
-/**
- * Fetches all showings for the chosen cinema for the current day
- * @param movies An array of Movie objects to fetch showings for (from fetchMovies)
- * @returns An array of Showing objects for the chosen cinema, or an empty array if an error occurred.
- */
-async function fetchShowings(movies: Map<string, Movie>): Promise<Showing[]> {
-  assert(process.env.SCHEDULE_API, 'SCHEDULE_API not set');
-  assert(process.env.CINEMA_ID, 'CINEMA_ID not set');
+async function populateMovies() {
+  assert(process.env.MOVIES_API, 'MOVIES_API not set');
 
-  let startTime = new Date();
-
+  const startTime = new Date();
   console.log();
-  logWithTimestamp("3) Fetching showings...");
+  logWithTimestamp("2) Fetching movies...");
 
-  const concurrency = process.env.BOOKING_CONCURRENCY_LIMIT
-    ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15
-    : 15;
+  // Fetch movie data from the movies API
+  const params = new URLSearchParams();
+  schedule.forEach(showing => params.append('ids', showing.movieId));
+  const movie_api_url = `${process.env.MOVIES_API}?${params.toString()}`;
 
-  const limit = pLimit(concurrency);
-  const tasks: Promise<Showing | null>[] = [];
+  try {
+    const response = await fetchWithRetry(movie_api_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
 
-  for (const movieID in schedule) {
-    const movie = movies.get(movieID);
-    if (!movie) {
-      logWithTimestamp(`Movie of ID ${movieID} could not be found in movie list; skipping.`);
-      continue;
-    }
-
-    for (const date in schedule[movieID]) {
-      for (const showing of schedule[movieID][date]) {
-        tasks.push(
-          limit(() =>
-            populateShowingDetails(showing, movie).catch((e) => {
-              console.error(e);
-              return null;
-            })
-          )
-        );
+    // Iterate through data and create movies map (keyed by movie ID)
+    const movieData = await response.json();
+    movieData.forEach((movie: any) => {
+      if(!movie.id || !movie.title || !movie.certificate || !movie.runtime) {
+        console.warn(`Skipping movie with missing data: ${JSON.stringify(movie)}`);
+        return;
       }
-    }
+      movies.set(movie.id, {
+        title: movie.title,
+        certificate: movie.certificate,
+        runtime: movie.runtime
+      });
+    });
+    logWithTimestamp(`Fetched ${movies.size} movies in ${secsSince(startTime)} seconds.`);
+  } catch {
+    logWithTimestamp(`Could not fetch movies from API; returning...`);
   }
-
-  const results = await Promise.all(tasks);
-  const showings = results.filter(Boolean) as Showing[]; // Filter out null results
-  logWithTimestamp(`Fetched ${showings.length} showings in ${secsSince(startTime)} seconds.`);
-
-  startTime = new Date();
-  console.log();
-  logWithTimestamp("4) Sorting showings by movie title and time...");
-  showings.sort((a, b) => {
-    const t = a.movie.title.localeCompare(b.movie.title);
-    if (t !== 0) return t;
-    return a.time.getTime() - b.time.getTime();
-  });
-  logWithTimestamp(`Sorted showings in ${secsSince(startTime)} seconds.\n`);
-
-  return showings;
+  
 }
 
 /**
- * Populates a Showing object with additional details (seating, etc) by making a temporary booking for the showing via the booking API. Used by fetchShowings.
- * @param showingJson The basic showing data from the API response
- * @param movie The movie object for the showing
- * @returns A populated Showing object
- * @throws If an unsalvageable error occurs, such as a missing booking URL or cart summary model.
+ * Populates screen number and guests from the cache, or fetches them from the API if not cached.
  */
-async function populateShowingDetails(showingJson: any, movie: Movie): Promise<Showing> {
-  const frontendBookingURL = showingJson?.data?.ticketing[0]?.urls[0] || null;
-  if(!frontendBookingURL) throw Error("No booking URL found for showing");
+async function populateScheduleDetails() {
+  assert(process.env.BOOKING_CONCURRENCY_LIMIT, 'BOOKING_CONCURRENCY_LIMIT not set');
 
-  const backendBookingURL = frontendBookingURL.replace('/startticketing', '/api/StartTicketing');
-  const bookingResponse = await fetchWithRetry(backendBookingURL, {
+  const startTime = new Date();
+  console.log();
+  logWithTimestamp("3) Populating schedule details...");
+  let needsUpdating = 0;
+  const failedShowings: string[] = []; // Keep track of showings that failed to update
+
+  const concurrency = process.env.BOOKING_CONCURRENCY_LIMIT
+  ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15
+  : 15;
+
+  const limit = pLimit(concurrency);
+  const tasks: Promise<void>[] = [];
+
+  for(const showing of schedule) {
+    
+    // Check if both the screen and capacity are cached
+    const screenNum = showingScreenCache.get(showing.id);
+    const screenCapacity = screenCapacityCache.get(screenNum!);
+    if(screenNum !== undefined && screenCapacity !== undefined) {
+      showing.screenNumber = screenNum;
+      showing.guests = Math.round((screenCapacity * showing.occupancyRate) / 100);
+      continue;
+    }
+
+    // Either screen number or capacity is not cached, so fetch them (both via the booking API)
+
+    if(needsUpdating == 0) logWithTimestamp('At least one showing needs updating, this may take a while...');
+    needsUpdating ++;
+
+    tasks.push(
+      limit(() =>
+        updateScreenCaches(showing).catch((e) => {
+          console.error(`Error updating screen data for showing ${showing.id} (${showing.startsAt}) - it will be ignored:`, e);
+          failedShowings.push(showing.id);
+        })
+      )
+    );
+  }
+
+  // Wait for all tasks to complete
+  await Promise.all(tasks);
+
+  logWithTimestamp(`Populated details of ${schedule.length-failedShowings.length}/${schedule.length} showings in ${secsSince(startTime)} seconds (${needsUpdating} updated from API) (${schedule.length-needsUpdating} from cache) (${failedShowings.length} failed).`);
+
+  // Filter out showings that failed to update; could consider re-retrying them first but that shouldn't change the outcome (showings are processed in reverse chronological order)
+  schedule = schedule.filter(s => !failedShowings.includes(s.id));
+
+}
+
+/**
+ * Updates the caches for showing screens and screen capacities from the booking API.
+ * Also updates the provided showing object with the screen number and guests (calculated from the screen capacity).
+ * @param showing The showing object to make a booking API request for, and to update with screen number and guests.
+ */
+async function updateScreenCaches(showing: ShowingPrivate): Promise<void> {
+  const bookingResponse = await fetchWithRetry(showing.bookingUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({"selectedLanguageCulture": null})
   });
 
+  ////                                                   Screen Number Update                                                         ////
+  ////  Attempts to update the screen number from the booking API, falling back to existing cache. Throws an error if neither exist   ////
+
   const bookingData = await bookingResponse.json();
   if(!bookingData) throw Error("No booking data returned from booking API");
-
-  const cartSummaryModel = bookingData?.cartSummaryModel || null;
-  const seatsLayoutModel = bookingData.selectSeatsModel?.seatsLayoutModel || null;
   
-  // We can't salvage this showing if we don't have a cart summary model
-  if(!cartSummaryModel) throw Error("No cart summary model");
 
-  const fallbackOccupancy = showingJson?.occupancy?.rate || -1;
-  const showing: Showing = {
-    movie,
-    time: new Date(showingJson.startsAt),
-    runtime: movie.runtime,
-    screen: Number.parseInt(cartSummaryModel.screen.split(' ')[1]),
-    seatsOccupied: 0,
-    seatsTotal: 0
-  };
+  let screenNumber = showingScreenCache.get(showing.id);
 
-  // Get the total number of seats in the screen
-  try {
+  // Extract the screen number from the cart summary model
+  const cartSummaryModel = bookingData?.cartSummaryModel || null;
+  if(cartSummaryModel) {
+    const screenMatch = cartSummaryModel.screen.match(/Screen (\d+)/);
+
+    if(screenMatch && screenMatch.length >= 2) {
+      screenNumber = parseInt(screenMatch[1]);
+      if(isNaN(screenNumber)) throw Error("Screen number is not a valid number");
+
+      showing.screenNumber = screenNumber;
+      showingScreenCache.set(showing.id, screenNumber); // Cache the screen number for future use
+    } else {
+      // If no screen number is found in the cart summary model, check if the screen number is already cached before throwing an error
+      if(screenNumber === undefined) {
+        throw Error(`No screen number found in cart summary model for showing ${showing.id}.`);
+      }
+    }
+  } else {
+    // If no cart summary model is found, check if the screen number is already cached before throwing an error
+    if(screenNumber === undefined) {
+      throw Error(`No screen number found in booking data for showing ${showing.id}.`);
+    }
+  }
+
+
+  ////                                  Screen Capacity & Guest Calculation                                   ////
+  //// Attempts to update the cache and showing from the API, falling back to existing cache if not available ////
+
+  // Fetch the total number of seats in the screen from the booking data
+  const seatsLayoutModel = bookingData.selectSeatsModel?.seatsLayoutModel;
+
+  // Update the screen capacity cache; it may already be cached but might as well update it
+  if(seatsLayoutModel) {
+    // Get the total number of seats in the screen
     const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
     const totalSeats = seats.length;
-    const occupiedSeats = seats.filter((s: {status: any}) => s.status !== 0).length;
-    showing.seatsOccupied = occupiedSeats;
-    showing.seatsTotal = totalSeats;
-  }
-  // Seats layout model has accurate data; fallback to showingJson occupancy if not available
-  catch {
-    if(fallbackOccupancy < 0) throw Error(`No fallback occupancy found for ${movie.title} showing at ${showing.time.toLocaleString()}`);
-    
-    // Use fallback occupancy if we can't parse the seats layout model
-    showing.unreliable = true; // Mark as unreliable if we had to use fallback occupancy
-    showing.seatsOccupied = fallbackOccupancy;
-    showing.seatsTotal = fallbackOccupancy; // Frontend doesn't use this anymore
+    if(totalSeats > 0) {
+      screenCapacityCache.set(screenNumber, totalSeats); // Cache the screen capacity for future use
+      showing.guests = Math.round((totalSeats * showing.occupancyRate) / 100); // Calculate guests based on occupancy rate
+    }
+    return;
   }
 
-  return showing;
+  // When seats layout model is empty (happens with past showings), see if the screen's capacity is already cached before throwing an error
+  if(screenCapacityCache.has(screenNumber)) {
+    const cachedCapacity = screenCapacityCache.get(screenNumber);
+    if(cachedCapacity) {
+      showing.guests = Math.round((cachedCapacity * showing.occupancyRate) / 100); // Calculate guests based on occupancy rate
+    } else { // If the cached capacity is 0, there's something wrong with the cache
+      screenCapacityCache.delete(screenNumber); // Remove the invalid cache entry
+      throw Error(`Invalid cached capacity found for screen ${screenNumber}; set to 0. Removing cache entry.`);
+    }
+  } else {
+    throw Error(`No seats layout model or cached capacity found for screen ${screenNumber} in showing ${showing.id}.`);
+  }
 }
-
-const keepAliveAgent = new Agent({
-  keepAliveTimeout: 12000,
-  connections: process.env.BOOKING_CONCURRENCY_LIMIT ? parseInt(process.env.BOOKING_CONCURRENCY_LIMIT) || 15 : 15,
-});
 
 /**
  * Fetches a URL with retry logic, using the keep-alive agent.
@@ -266,30 +358,4 @@ export function secsSince(start: Date): number {
 
 export function logWithTimestamp(message: string, omitNewline: boolean = false) {
   process.stdout.write(`${new Date().toLocaleTimeString()}: ${message}${omitNewline ? '' : '\n'}`);
-}
-
-/**
- * Fetches all movies showing at the cinema, and then fetches all showings for those movies.
- * @returns An array of Showings for the cinema, or undefined if an error occurred.
- */
-export async function grabShowings(): Promise<Showing[] | undefined> {
-
-  if(!process.env.CINEMA_ID || !process.env.SCHEDULE_API) {
-    console.error('One or more required environment variables are not set.\n' +
-    'Required variables: CINEMA_ID, SCHEDULE_API' +
-    '\nNo data will be returned.');
-    return [];
-  }
-
-  // clear values
-  schedule = {};
-
-  await fetchSchedule();
-
-  try{
-    return await fetchShowings(await fetchMovies());
-  } catch (error) {
-    console.error("An error occurred when fetching data. No data will be returned. Error: \n" + error);
-    return undefined;
-  }
 }

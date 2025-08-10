@@ -1,11 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import { Showing, grabShowings, logWithTimestamp, secsSince } from './utils.js';
+import { Movie, Showing, grabShowings, logWithTimestamp, secsSince } from './utils.js';
 import {generateSessionId, validSession} from './sessions.js';
 import assert from 'assert';
 
 
-const MAX_FETCH_AGE = (60000 * 5); // 5 minutes in milliseconds; any data older than this will be re-fetched.
+const MAX_FETCH_AGE = (60000 * 1); // 1 minute; any data older than this will be re-fetched.
 // const MAX_FETCH_AGE = (5000); // 5 seconds in milliseconds
 
 if(!process.env.FRONTEND_URL || !process.env.EXPRESS_PORT || !process.env.FRONTEND_PASSWORD) {
@@ -26,7 +26,7 @@ app.use((_req, res, next) => {
 
 
 let isFetching = false; // Prevents multiple fetches at once.
-let lastFetch: Showing[] = []; // Cache the last fetch to prevent multiple fetches in a short time.
+let lastFetch: {schedule: Showing[], movies: {[movieId: string]: Movie}} = {schedule: [], movies: {} }; // Cache the last fetch to prevent multiple fetches in a short time.
 let lastFetchTime = 0; // Time of the last fetch in milliseconds.
 
 app.get('/showtimes', async (req, res) => {
@@ -54,18 +54,18 @@ app.get('/showtimes', async (req, res) => {
   logWithTimestamp('Fetching new data.');
   const startFetchTime = new Date();
 
-  grabShowings().then(showings => {
+  grabShowings().then(schedule => {
 
-    if(showings == undefined) {
+    if(schedule == undefined) {
       logWithTimestamp('Trying again soon.');
       return res.status(500).json({ error: 'An error occurred while fetching showtimes.' });
     }
 
-    lastFetch = showings;
+    lastFetch = schedule;
     lastFetchTime = Date.now();
     logWithTimestamp(`Updated showtimes cache in ${secsSince(startFetchTime)} seconds`);
     logWithTimestamp('Returning new data.');
-    return res.json({data: showings, timeFetched: lastFetchTime});
+    return res.json({data: schedule, timeFetched: lastFetchTime});
   }).finally(() => {
     isFetching = false;
   });

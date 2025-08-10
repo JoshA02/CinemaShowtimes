@@ -1,14 +1,16 @@
-import React, {useEffect, useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import logo from './logo.svg';
 import '../App.css';
-import {Showing} from '../types';
+import {Movie, Showing} from '../types';
 import ShowingListItem from '../components/ShowingListItem';
 import AttendanceListItem from '../components/AttendanceListItem';
+import {MovieProvider} from '../context/MovieContext';
 
 function Schedule() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
-  const [showings, setShowings] = useState([] as Showing[]);
-  const [unfilteredShowings, setUnfilteredShowings] = useState([] as Showing[]);
+  const [filteredSchedule, setFilteredSchedule] = useState([] as Showing[]);
+  const [filteredShowings, setUnfilteredSchedule] = useState([] as Showing[]);
+  const [movies, setMovies] = useState({} as {[movieId: string]: Movie});
 
   const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
@@ -51,16 +53,18 @@ function Schedule() {
       }
       return res.json();
     }).then(data => {
-        if(!data.data) throw new Error('No showings returned.');
-        let tempShowings: Showing[] = data.data;
-        if(!tempShowings) return;
-        tempShowings = tempShowings.filter(showing => {
-          const showingTime = new Date(showing.time);
+        const {schedule, movies} = data.data as {schedule: Showing[], movies: {[movieId: string]: Movie}};
+        if(!schedule) throw new Error('No showings returned.');
+        let tempSchedule: Showing[] = schedule;
+        if(!tempSchedule) return;
+        tempSchedule = tempSchedule.filter(showing => {
+          const showingTime = new Date(showing.startsAt);
           return showingTime > startTime.current && showingTime < latestTime.current;
         });
-        tempShowings = tempShowings.sort((a, b) => a.time > b.time ? 1 : -1);
-        setShowings(tempShowings);
-        setUnfilteredShowings(data.data as Showing[]);
+        tempSchedule = tempSchedule.sort((a, b) => a.startsAt > b.startsAt ? 1 : -1);
+        setFilteredSchedule(tempSchedule);
+        setUnfilteredSchedule(schedule);
+        setMovies(movies as {[movieId: string]: Movie});
         setSecsSinceUpdate(Math.floor((Date.now() - data.timeFetched) / 1000));
         setStatusMessage('');
       })
@@ -68,8 +72,8 @@ function Schedule() {
   }
 
   function GetRemainingAttendance(): number {
-    if(!showings) return 0;
-    return(showings.reduce(( (acc, showing) => acc + showing.seatsOccupied ), 0));
+    if(!filteredSchedule) return 0;
+    return(filteredSchedule.reduce(( (acc, showing) => acc + showing.guests ), 0));
   }
 
   useEffect(() => {
@@ -93,62 +97,64 @@ function Schedule() {
    * @returns The total attendance between the two dates
    */
   function GetAttendanceBetween(start: Date, end: Date): number {
-    return unfilteredShowings.filter(showing => {
-      const showingTime = new Date(showing.time);
+    return filteredShowings.filter(showing => {
+      const showingTime = new Date(showing.startsAt);
       return showingTime >= start && showingTime <= end;
-    }).reduce((acc, showing) => acc + showing.seatsOccupied, 0);
+    }).reduce((acc, showing) => acc + showing.guests, 0);
   }  
 
   return (
-    <div className="App">
-      <h2>Schedule</h2>
-      <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)} ago</h3></span>
-      <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
-      {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
+    <MovieProvider value={movies}>
+      <div className="App">
+        <h2>Schedule</h2>
+        <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)} ago</h3></span>
+        <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
+        {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
-      <div className="viewSelectionContainer">
-        <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
-        <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
+        <div className="viewSelectionContainer">
+          <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
+          <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
+        </div>
+
+
+        {mode === 'showings' && (
+          <div>
+            {filteredSchedule.map((showing, index) => (
+              <ShowingListItem showing={showing} key={index}/>
+            ))}
+          </div>
+        )}
+
+        {mode === 'attendance' && (
+          <div>
+
+            {/* One hour from this exact time, rounding end to closest hour */}
+            <AttendanceListItem 
+              start={startTime.current}
+              end={nextHour.current}
+              attendance={GetAttendanceBetween(startTime.current, nextHour.current)}
+            />
+
+            {/* The remaining hours of today */}
+            {
+              // Create an attendance list item for each hour in the future, excluding the current hour
+              Array.from({length: hoursTillMidnight.current}, (_, i) => {
+                const start = new Date(hourRoundDown.current + (i + 1) * 1000 * 60 * 60);
+                const end = new Date(start.getTime() + 1000 * 60 * 60);
+                return (
+                  <AttendanceListItem 
+                    key={i} 
+                    start={start} 
+                    end={end} 
+                    attendance={GetAttendanceBetween(start, end)} />
+                );
+              })
+            }
+
+          </div>
+        )}
       </div>
-
-
-      {mode === 'showings' && (
-        <div>
-          {showings.map((showing, index) => (
-            <ShowingListItem showing={showing} key={index}/>
-          ))}
-        </div>
-      )}
-
-      {mode === 'attendance' && (
-        <div>
-
-          {/* One hour from this exact time, rounding end to closest hour */}
-          <AttendanceListItem 
-            start={startTime.current}
-            end={nextHour.current}
-            attendance={GetAttendanceBetween(startTime.current, nextHour.current)}
-          />
-
-          {/* The remaining hours of today */}
-          {
-            // Create an attendance list item for each hour in the future, excluding the current hour
-            Array.from({length: hoursTillMidnight.current}, (_, i) => {
-              const start = new Date(hourRoundDown.current + (i + 1) * 1000 * 60 * 60);
-              const end = new Date(start.getTime() + 1000 * 60 * 60);
-              return (
-                <AttendanceListItem 
-                  key={i} 
-                  start={start} 
-                  end={end} 
-                  attendance={GetAttendanceBetween(start, end)} />
-              );
-            })
-          }
-
-        </div>
-      )}
-    </div>
+    </MovieProvider>
   );
 }
 
