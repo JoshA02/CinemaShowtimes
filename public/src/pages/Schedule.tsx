@@ -1,5 +1,4 @@
 import {useEffect, useRef, useState} from 'react';
-import logo from './logo.svg';
 import '../App.css';
 import {Movie, Showing} from '../types';
 import ShowingListItem from '../components/ShowingListItem';
@@ -12,7 +11,7 @@ function Schedule() {
   const [filteredShowings, setUnfilteredSchedule] = useState([] as Showing[]);
   const [movies, setMovies] = useState({} as {[movieId: string]: Movie});
 
-  const [mode, setMode] = useState<'showings' | 'attendance'>('showings');
+  const [mode, setMode] = useState<'showings' | 'attendance' | 'rel-attendance'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
   
   // Refs to keep track of time calculations without causing re-renders //
@@ -113,7 +112,8 @@ function Schedule() {
 
         <div className="viewSelectionContainer">
           <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
-          <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
+          <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Hourly Attendance</span></div>
+          <div className={`selection ${mode === 'rel-attendance' ? 'active' : ''}`} onClick={() => setMode("rel-attendance")}><span>Relevant Attendance</span></div>
         </div>
 
 
