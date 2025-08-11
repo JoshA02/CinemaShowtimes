@@ -39,6 +39,17 @@ function Schedule() {
     return () => clearInterval(interval);
   }, [secsSinceUpdate]);
 
+  /**
+   * Updates the imminent guests count based on the current filtered schedule.
+   * This function checks for showings that have started or are starting in the next 10 minutes.
+   */
+  function GetImminentGuests(): number {
+    return(filteredSchedule.filter(showing => {
+      const showingTime = new Date(showing.startsAt);
+      return Math.abs(showingTime.getTime() - Date.now()) <= 1000 * 60 * 10; // Within 10 minutes
+    }).reduce((acc, showing) => acc + showing.guests, 0));
+  }
+
   // Fetch the schedule from the server:
   async function updateSchedule() {
     const apiURL = process.env.REACT_APP_API_URL;
@@ -137,6 +148,7 @@ function Schedule() {
         <h2>Schedule</h2>
         <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)} ago</h3></span>
         <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
+        <span className='flex-hoz'><h3>Guests around now&nbsp;</h3><h3 className='bold'>{GetImminentGuests()}</h3></span>
         {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
         <div className="viewSelectionContainer">
