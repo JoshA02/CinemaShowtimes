@@ -57,7 +57,7 @@ function Schedule() {
     const searchParams = new URLSearchParams();
     searchParams.append('sessionId', currentSessionId);
 
-    setStatusMessage('Updating schedule...');
+    setStatusMessage('Updating...');
     await fetch(apiURL + `/showtimes?${searchParams.toString()}`).then(res => {
       if(!res.ok){
         if(res.status === 401) return window.location.href = '/'; // Redirect to login page if session is invalid.
@@ -94,7 +94,7 @@ function Schedule() {
         .then(() => setTimeout(() => scheduleUpdateHandler(), 1000 * 30)) // Update every 30 seconds
         .catch((e) => {
           console.log(e);
-          setStatusMessage('Failed to update schedule. Retrying...');
+          setStatusMessage('Failed, retrying...');
           setTimeout(() => scheduleUpdateHandler(), 1000 * 3); // Retry every 3 seconds
         });
     }
@@ -147,11 +147,11 @@ function Schedule() {
       <div className="App">
         <h2>
           Schedule&nbsp;·&nbsp;
-          <span className='bold'>{SecsToHMS(secsSinceUpdate)} old</span>
+          {statusMessage ? <span className='bold'>{statusMessage}</span> :
+          <span className='bold'>{SecsToHMS(secsSinceUpdate)} old</span>}
         </h2>
         <span className='flex-hoz'><h3>Remaining guests&nbsp;·&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()}</h3></span>
         <span className='flex-hoz'><h3>Current guests&nbsp;·&nbsp;</h3><h3 className='bold'>{GetImminentGuests()}</h3></span>
-        {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
         <div className="viewSelectionContainer">
           <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
