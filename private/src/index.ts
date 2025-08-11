@@ -29,9 +29,14 @@ let isFetching = false; // Prevents multiple fetches at once.
 let lastFetch: {schedule: Showing[], movies: {[movieId: string]: Movie}} = {schedule: [], movies: {} }; // Cache the last fetch to prevent multiple fetches in a short time.
 let lastFetchTime = 0; // Time of the last fetch in milliseconds.
 
+/**
+ * Grabs today's schedule and caches for the first time this execution.
+ * This is called once at the start of the server to populate the cache within utils.ts
+ */
 async function initialFetch() {
   logWithTimestamp('Populating initial cache...');
   try {
+    isFetching = true;
     const showings = await grabShowings();
     if(showings == undefined) throw new Error('Schedule undefined: ');
     lastFetch = showings;
@@ -39,9 +44,16 @@ async function initialFetch() {
     logWithTimestamp('Initial cache populated.');
   } catch (err) {
     console.error('Error during initial fetch:', err);
+  } finally {
+    isFetching = false;
   }
 }
 
+/**
+ * Watches for midnight and refreshes the cache at that time.
+ * This ensures that the cache is cleared and updated with the latest showtimes instead of waiting for the next request to trigger a fetch.
+ * Results in a more responsive experience for the first request after midnight.
+ */
 function watchForMidnight() {
   const now = new Date();
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
