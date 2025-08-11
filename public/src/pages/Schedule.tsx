@@ -145,10 +145,12 @@ function Schedule() {
   return (
     <MovieProvider value={movies}>
       <div className="App">
-        <h2>Schedule</h2>
-        <span className='flex-hoz'><h3>Last updated&nbsp;</h3><h3 className='bold'>{SecsToHMS(secsSinceUpdate)} ago</h3></span>
-        <span className='flex-hoz'><h3>Remaining&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()} guests</h3></span>
-        <span className='flex-hoz'><h3>Guests around now&nbsp;</h3><h3 className='bold'>{GetImminentGuests()}</h3></span>
+        <h2>
+          Schedule&nbsp;·&nbsp;
+          <span className='bold'>{SecsToHMS(secsSinceUpdate)} old</span>
+        </h2>
+        <span className='flex-hoz'><h3>Remaining guests&nbsp;·&nbsp;</h3><h3 className='bold'>{GetRemainingAttendance()}</h3></span>
+        <span className='flex-hoz'><h3>Current guests&nbsp;·&nbsp;</h3><h3 className='bold'>{GetImminentGuests()}</h3></span>
         {statusMessage && <span className='statusMessage bold'>{statusMessage}</span>}
 
         <div className="viewSelectionContainer">
