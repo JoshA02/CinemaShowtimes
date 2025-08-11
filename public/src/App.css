@@ -36,6 +36,12 @@ h3 {
 .bold {
   font-weight: bold;
 }
+.sml {
+  font-size: 12px;
+}
+.text-left {
+  text-align: left;
+}
 
 span {
   font-size: 16px;

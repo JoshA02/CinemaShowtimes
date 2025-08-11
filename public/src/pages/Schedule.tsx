@@ -1,17 +1,19 @@
 import {useEffect, useRef, useState} from 'react';
 import '../App.css';
-import {Movie, Showing} from '../types';
+import {ConsolidatedShowing, Movie, Showing} from '../types';
 import ShowingListItem from '../components/ShowingListItem';
 import AttendanceListItem from '../components/AttendanceListItem';
 import {MovieProvider} from '../context/MovieContext';
+import ConsolidatedListItem from '../components/ConsolidatedListItem';
 
 function Schedule() {
   const [secsSinceUpdate, setSecsSinceUpdate] = useState(0);
   const [filteredSchedule, setFilteredSchedule] = useState([] as Showing[]);
   const [filteredShowings, setUnfilteredSchedule] = useState([] as Showing[]);
+  const [consolidatedSchedule, setConsolidatedSchedule] = useState({} as {[key: string]: ConsolidatedShowing});
   const [movies, setMovies] = useState({} as {[movieId: string]: Movie});
 
-  const [mode, setMode] = useState<'showings' | 'attendance' | 'rel-attendance'>('showings');
+  const [mode, setMode] = useState<'showings' | 'attendance' | 'consolidated'>('showings');
   const [statusMessage, setStatusMessage] = useState('' as string);
   
   // Refs to keep track of time calculations without causing re-renders //
@@ -89,6 +91,33 @@ function Schedule() {
     scheduleUpdateHandler();
   }, []);
 
+  useEffect(() => {
+    const showingMap: {[key: string]: ConsolidatedShowing} = {};
+
+    // Consolidate showings into 10-minute intervals, rounding any non-rounded times down to the nearest 10 minutes
+    filteredSchedule.forEach(showing => {
+      const showingTime = new Date(showing.startsAt);
+      const roundedTime = new Date(Math.floor(showingTime.getTime() / (10 * 60 * 1000)) * (10 * 60 * 1000)); // Round down to the nearest 10 minutes
+      if(roundedTime < startTime.current) return; // Ignore showings way in the past
+      const roundedTimeKey = roundedTime.toISOString();
+
+      if (!showingMap[roundedTimeKey]) {
+        showingMap[roundedTimeKey] = {
+          showings: [],
+          startsAt: roundedTime,
+          totalGuests: 0
+        };
+      }
+      showingMap[roundedTimeKey].showings.push(showing);
+      showingMap[roundedTimeKey].totalGuests += showing.guests;
+    });
+
+    setConsolidatedSchedule(showingMap);
+
+
+  }, [filteredSchedule])
+  
+
   /**
    * Get the total attendance between two dates
    * @param start The start date
@@ -112,8 +141,8 @@ function Schedule() {
 
         <div className="viewSelectionContainer">
           <div className={`selection ${mode === 'showings' ? 'active' : ''}`} onClick={() => setMode("showings")}><span>Showings</span></div>
-          <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Hourly Attendance</span></div>
-          <div className={`selection ${mode === 'rel-attendance' ? 'active' : ''}`} onClick={() => setMode("rel-attendance")}><span>Relevant Attendance</span></div>
+          <div className={`selection ${mode === 'attendance' ? 'active' : ''}`} onClick={() => setMode("attendance")}><span>Attendance</span></div>
+          <div className={`selection ${mode === 'consolidated' ? 'active' : ''}`} onClick={() => setMode("consolidated")}><span>Consolidated</span></div>
         </div>
 
 
@@ -151,6 +180,18 @@ function Schedule() {
               })
             }
 
+          </div>
+        )}
+
+        {mode === 'consolidated' && (
+          <div>
+            {Object.entries(consolidatedSchedule).map(([startTime, consolidated]) => (
+              <ConsolidatedListItem
+                key={startTime}
+                start={new Date(consolidated.startsAt)}
+                showings={consolidated}
+              />
+            ))}
           </div>
         )}
       </div>

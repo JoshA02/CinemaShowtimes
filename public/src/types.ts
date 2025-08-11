@@ -10,3 +10,9 @@ export type Showing = {
   screenNumber: number;
   guests: number;
 };
+
+export type ConsolidatedShowing = {
+  showings: Showing[];
+  startsAt: Date;
+  totalGuests: number;
+}
