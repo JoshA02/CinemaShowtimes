@@ -33,20 +33,19 @@ let lastFetchTime = 0; // Time of the last fetch in milliseconds.
  * Grabs today's schedule and caches for the first time this execution.
  * This is called once at the start of the server to populate the cache within utils.ts
  */
-async function initialFetch() {
+function initialFetch() {
   logWithTimestamp('Populating initial cache...');
-  try {
-    isFetching = true;
-    const showings = await grabShowings();
+  isFetching = true;
+  grabShowings().then(showings => {
     if(showings == undefined) throw new Error('Schedule undefined: ');
     lastFetch = showings;
     lastFetchTime = Date.now();
     logWithTimestamp('Initial cache populated.');
-  } catch (err) {
+  }).catch(err => {
     console.error('Error during initial fetch:', err);
-  } finally {
+  }).finally(() => {
     isFetching = false;
-  }
+  });
 }
 
 /**
@@ -137,13 +136,9 @@ app.get('/authenticate', async (req, res) => {
   res.send({sessionId}); // Send the generated session id back to the client; they'll use this to make requests.
 });
 
-
-// Initial fetch to populate the cache
-await initialFetch();
-
 app.listen(process.env.EXPRESS_PORT, () => {
   logWithTimestamp('Server listening on port ' + process.env.EXPRESS_PORT);
-});
 
-// Start watching for midnight to refresh the cache
-watchForMidnight();
+  initialFetch(); // Initial fetch to populate the cache
+  watchForMidnight(); // Start watching for midnight to refresh the cache
+});

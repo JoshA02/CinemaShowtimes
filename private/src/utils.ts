@@ -177,14 +177,14 @@ async function populateMovies() {
     // Iterate through data and create movies map (keyed by movie ID)
     const movieData = await response.json();
     movieData.forEach((movie: any) => {
-      if(!movie.id || !movie.title || !movie.certificate || !movie.runtime) {
-        console.warn(`Skipping movie with missing data: ${JSON.stringify(movie)}`);
+      if(!movie.id || !movie.title) {
+        console.warn(`Skipping movie with missing essential data: ${JSON.stringify(movie)}`);
         return;
       }
       movies.set(movie.id, {
         title: movie.title,
-        certificate: movie.certificate,
-        runtime: movie.runtime
+        certificate: movie.certificate || '',
+        runtime: movie.runtime ? parseInt(movie.runtime) : 0 // Ensure runtime is a number, default to 0 if not available
       });
     });
     logWithTimestamp(`Fetched ${movies.size} movies in ${secsSince(startTime)} seconds.`);
