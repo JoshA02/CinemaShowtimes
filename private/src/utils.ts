@@ -304,11 +304,16 @@ async function updateScreenCaches(showing: ShowingPrivate): Promise<void> {
   // Update the screen capacity cache; it may already be cached but might as well update it
   if(seatsLayoutModel) {
     // Get the total number of seats in the screen
-    const seats = seatsLayoutModel.rows.flatMap((r: {seats: any}) => r.seats);
-    const totalSeats = seats.length;
+    const totalSeats = seatsLayoutModel.rows.reduce((acc: number, row: {seats: any[]}) => {
+      return acc + row.seats.reduce((rowAcc: number, seat: {isASeat: boolean}) => {
+        return rowAcc + (seat.isASeat ? 1 : 0);
+      }, 0);
+    }, 0);
+
     if(totalSeats > 0) {
       screenCapacityCache.set(screenNumber, totalSeats); // Cache the screen capacity for future use
-      showing.guests = Math.round((totalSeats * showing.occupancyRate) / 100); // Calculate guests based on occupancy rate
+      logWithTimestamp(`Screen ${screenNumber} has a total of ${totalSeats} seats.`);
+      showing.guests = Math.ceil((totalSeats * showing.occupancyRate) / 100); // Calculate guests based on occupancy rate, rounding up
     }
     return;
   }
